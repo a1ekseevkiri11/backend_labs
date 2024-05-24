@@ -1,30 +1,33 @@
 from fastapi import APIRouter, Depends, Response
-
-router = APIRouter(tags=["Auth"], prefix="api/auth")
-
+from src.models import auth
 
 
-@router.post("/login/")
+router = APIRouter(tags=["Auth"], prefix="/auth")
+
+
+@router.post("/login/", response_model=auth.LoginRequest)
 async def login(
 ):
     pass
 
 
-@router.post("/register/")
+@router.post("/register/", response_model=auth.RegisterRequest)
 async def register(
 ):
     pass
 
-@router.get("/me/",)
+
+@router.get("/me/")
 async def user(
 ):
-    pass
+    return {"data": "Я"}
 
 
 @router.post("/out/")
 async def register(
 ):
     pass
+
 
 @router.get("/tokens/")
 async def user(

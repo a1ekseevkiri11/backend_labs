@@ -1,5 +1,7 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI
 from src.settings import settings
+from src.api.auth import router as auth_router
+
 
 app = FastAPI(
     title="backend_lab",
@@ -8,8 +10,4 @@ app = FastAPI(
 )
 
 
-@app.get("/")
-def hello_index():
-    return {
-        "message": "Hello index!",
-    }
+app.include_router(auth_router, prefix="/api")
