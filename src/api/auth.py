@@ -1,42 +1,103 @@
-from fastapi import APIRouter, Depends, Response
-from src.models import auth
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+    Response,
+    status,
+)
+from fastapi.security import (
+    OAuth2PasswordRequestForm,
+    OAuth2PasswordBearer,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
+
+from src.database import databaseHandler
+from src.services.auth import services as auth_services
+from src.models import auth as auth_model
 
 
 router = APIRouter(tags=["Auth"], prefix="/auth")
 
+oauth_schema = OAuth2PasswordBearer(tokenUrl="/api/auth/login/")
 
-@router.post("/login/", response_model=auth.LoginRequest)
+
+@router.post("/login/", response_model=auth_model.Token)
 async def login(
+        response: Response,
+        user_data: OAuth2PasswordRequestForm = Depends(),
+        session: AsyncSession = Depends(databaseHandler.get_session)
 ):
-    pass
+    return await auth_services.login(
+        username=user_data.username,
+        password=user_data.password,
+        session=session
+    )
 
 
-@router.post("/register/", response_model=auth.RegisterRequest)
+@router.post(
+    "/register/",
+    response_model=auth_model.OutputUser,
+    status_code=status.HTTP_201_CREATED
+)
 async def register(
+        user_data: auth_model.RegisterRequest,
+        session: AsyncSession = Depends(databaseHandler.get_session)
 ):
-    pass
+    return await auth_services.register(
+        user_data=user_data,
+        session=session
+    )
 
 
-@router.get("/me/")
-async def user(
+async def valid_token(
+        token: str = Depends(oauth_schema),
+        session: AsyncSession = Depends(databaseHandler.get_session)
 ):
-    return {"data": "Я"}
-
-
-@router.post("/out/")
-async def register(
-):
-    pass
+    return await auth_services.validate_token(
+        token=token,
+        session=session,
+    )
 
 
 @router.get("/tokens/")
-async def user(
+async def tokens(
+        token: auth_model.User = Depends(valid_token),
 ):
-    pass
+    return token
+
+
+
+
+@router.get("/me/")
+async def me(
+        token: auth_model.User = Depends(valid_token),
+        session: AsyncSession = Depends(databaseHandler.get_session),
+):
+    return await auth_services.current_user(
+        session=session,
+        token=token,
+    )
+
+
+@router.post("/out/")
+async def logout(
+        token: auth_model.User = Depends(valid_token),
+        session: AsyncSession = Depends(databaseHandler.get_session)
+):
+    return await auth_services.logout(
+        token=token,
+        session=session,
+    )
 
 
 @router.post("/out_all/")
-async def register(
+async def logout_all(
+        token: auth_model.User = Depends(valid_token),
+        session: AsyncSession = Depends(databaseHandler.get_session)
 ):
-    pass
+    return await auth_services.logout(
+        token=token,
+        session=session,
+    )
 

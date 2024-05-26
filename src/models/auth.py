@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import DateTime
+from datetime import date
 
 
 class LoginRequest(BaseModel):
@@ -12,13 +12,19 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     c_password: str
-    birthday: DateTime
+    birthday: date
 
 
 class User(BaseModel):
+    id: int
+    username: str
+
+
+class OutputUser(BaseModel):
+    id: int
     username: str
     email: EmailStr
-    birthday: DateTime
+    birthday: date
 
 
 class Token(BaseModel):

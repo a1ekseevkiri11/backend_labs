@@ -1,6 +1,12 @@
 from fastapi import FastAPI
 from src.settings import settings
 from src.api.auth import router as auth_router
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
 
 
 app = FastAPI(

@@ -5,23 +5,33 @@ from sqlalchemy.orm import (
     declared_attr,
 )
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Text,
-    DateTime,
+    Date,
+    DateTime
 )
 
 
 class Base(DeclarativeBase):
     __abstract__ = True
-    id: Mapped[int] = mapped_column(primary_key=True)
+
+
+
 
 
 class User(Base):
     __tablename__ = "users"
-
+    id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     password: Mapped[str] = mapped_column(Text, nullable=False)
     email: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
-    birthday: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    birthday: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class RevokedToken(Base):
+    __tablename__ = 'revoked_tokens'
+
+    token: Mapped[str] = mapped_column(Text, primary_key=True)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
