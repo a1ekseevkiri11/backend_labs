@@ -129,20 +129,18 @@ class AuthServices:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
 
-
     async def login(
             self,
-            username: str,
-            password: str,
+            user_data: auth_model.LoginRequest,
             session: AsyncSession
     ) -> auth_model.Token:
 
-        stmt = select(tables.User).where(tables.User.username == username)
+        stmt = select(tables.User).where(tables.User.username == user_data.username)
         db_response = await session.execute(stmt)
         user = db_response.scalar()
 
         if user:
-            if self.validate_password(password, str.encode(user.password, encoding="utf-8")):
+            if self.validate_password(user_data.password, str.encode(user.password, encoding="utf-8")):
                 return self.create_token(user=user)
 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect login or password")
@@ -152,6 +150,7 @@ class AuthServices:
             user_data: auth_model.RegisterRequest,
             session: AsyncSession
     ) -> auth_model.OutputUser:
+
         stmt = select(tables.User).where(tables.User.username == user_data.username)
         db_response = await session.execute(stmt)
         db_user = db_response.scalar()
@@ -159,7 +158,7 @@ class AuthServices:
         if db_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User with the same name already exists",
+                detail="User with this username already exists",
                 headers={
                     "WWW-Authenticate": 'Bearer'
                 }

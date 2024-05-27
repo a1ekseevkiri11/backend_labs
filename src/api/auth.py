@@ -4,6 +4,7 @@ from fastapi import (
     Request,
     Response,
     status,
+    HTTPException,
 )
 from fastapi.security import (
     OAuth2PasswordRequestForm,
@@ -24,13 +25,18 @@ oauth_schema = OAuth2PasswordBearer(tokenUrl="/api/auth/login/")
 
 @router.post("/login/", response_model=auth_model.Token)
 async def login(
-        response: Response,
         user_data: OAuth2PasswordRequestForm = Depends(),
         session: AsyncSession = Depends(databaseHandler.get_session)
 ):
+    try:
+        user_data = auth_model.LoginRequest(
+            username=user_data.username,
+            password=user_data.password
+        )
+    except ValueError as ex:
+        raise HTTPException(status_code=status.HTTP_423_UNPROCESSABLE_ENTITY_FORBIDDEN, detail=f"{ex}")
     return await auth_services.login(
-        username=user_data.username,
-        password=user_data.password,
+        user_data=user_data,
         session=session
     )
 
