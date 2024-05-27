@@ -13,6 +13,7 @@ from fastapi.security import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 
+
 from src.database import databaseHandler
 from src.services.auth import services as auth_services
 from src.models import auth as auth_model
