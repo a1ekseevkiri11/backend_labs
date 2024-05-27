@@ -20,20 +20,24 @@ oauth_schema = OAuth2PasswordBearer(tokenUrl="/api/auth/login/")
 class JWTServices:
     @staticmethod
     def encode_jwt(
+            type: str,
             payload: dict,
             private_key: str = settings.auth_jwt.private_key_path.read_text(),
             algorithm: str = settings.auth_jwt.algorithm,
             expire_timedelta: timedelta | None = None,
-            expire_minutes: int = settings.auth_jwt.access_token_expire_minutes,
-    ):
+            access_expire_minutes: int = settings.auth_jwt.access_token_expire_minutes,
+            refresh_expire_minutes: int = settings.auth_jwt.refresh_token_expire_minutes,
+    ) -> str:
 
         to_encode = payload.copy()
         now = datetime.now(timezone.utc)
 
         if expire_timedelta:
             expire = now + expire_timedelta
+        elif type == "access":
+            expire = now + timedelta(minutes=access_expire_minutes)
         else:
-            expire = now + timedelta(minutes=expire_minutes)
+            expire = now + timedelta(minutes=refresh_expire_minutes)
 
         to_encode.update(
             exp=expire,
@@ -64,18 +68,39 @@ class AuthServices:
         return bcrypt.checkpw(password.encode(), hash_password)
 
 
-    def create_token(self, user: tables.User) -> auth_model.Token:
-        user_data = auth_model.User(
-            id=user.id,
-            username=user.username,
-        )
+    def create_access_token(self, user: auth_model.User) -> str:
+
 
         payload = {
-            "sub": str(user_data.id),
-            "user": user_data.dict()
+            "type": "access",
+            "sub": str(user.id),
+            "user": user.dict()
         }
 
-        return auth_model.Token(access_token=JWTServices.encode_jwt(payload))
+        return JWTServices.encode_jwt(type="access",payload=payload)
+
+    def create_refresh_token(self, user: auth_model.User) -> str:
+        payload = {
+            "type": "refresh",
+            "sub": str(user.id),
+        }
+        return JWTServices.encode_jwt(type="refresh", payload=payload)
+
+    async def refresh(
+            self,
+            session: AsyncSession,
+            token: str,
+    ) -> str:
+
+        user = await self.current_user(
+            session=session,
+            token=token
+        )
+        user_data = auth_model.User(
+            id=user.id,
+            username=user.username
+        )
+        return self.create_access_token(user=user_data)
 
     async def validate_token(
             self,
@@ -98,7 +123,13 @@ class AuthServices:
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
+        if info_token.get("type") == "refresh":
+            return await self.refresh(session=session, token=token)
+
         return token
+
+
+
 
     async def current_user(
             self,
@@ -141,7 +172,16 @@ class AuthServices:
 
         if user:
             if self.validate_password(user_data.password, str.encode(user.password, encoding="utf-8")):
-                return self.create_token(user=user)
+                user_data = auth_model.User(
+                    id=user.id,
+                    username=user.username
+                )
+                access_token = self.create_access_token(user=user_data)
+                refresh_token = self.create_refresh_token(user=user_data)
+                return auth_model.Token(
+                    access_token=access_token,
+                    refresh_token=refresh_token
+                )
 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect login or password")
 

@@ -60,7 +60,7 @@ async def register(
 async def valid_token(
         token: str = Depends(oauth_schema),
         session: AsyncSession = Depends(databaseHandler.get_session)
-):
+) -> str:
     return await auth_services.validate_token(
         token=token,
         session=session,
@@ -69,7 +69,7 @@ async def valid_token(
 
 @router.get("/tokens/")
 async def tokens(
-        token: auth_model.User = Depends(valid_token),
+        token: str = Depends(valid_token),
 ):
     return token
 
