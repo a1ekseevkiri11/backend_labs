@@ -1,4 +1,4 @@
-from typing_extensions import Annotated
+import uuid
 from pydantic import (
     BaseModel,
     EmailStr,
@@ -8,7 +8,7 @@ from pydantic import (
     model_validator,
     field_validator,
 )
-from datetime import date
+from datetime import date, datetime
 
 from typing_extensions import Self
 
@@ -64,18 +64,31 @@ class RegisterRequest(LoginRequest):
 
 
 class User(BaseModel):
-    id: int
-    username: str
-
-
-class OutputUser(BaseModel):
-    id: int
     username: str
     email: EmailStr
     birthday: date
 
 
+class UserCreateDB(User):
+    hashed_password: str
+
+
+class UserUpdateDB(User):
+    id: int
+    hashed_password: str
+
+
 class Token(BaseModel):
     access_token: str
-    refresh_token: str | None = None
     token_type: str = "Bearer"
+
+
+class TokenCreateDB(BaseModel):
+    hashed_token: str
+    exp: datetime
+    user_id: int
+
+
+class TokenUpdateDB(TokenCreateDB):
+    id: int
+

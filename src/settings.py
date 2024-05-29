@@ -19,6 +19,7 @@ class AuthJWT(BaseModel):
     algorithm: str = "RS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_minutes: int = 60 * 24 * 30
+    count_tokens: int = 3
 
 
 class Settings(BaseSettings):

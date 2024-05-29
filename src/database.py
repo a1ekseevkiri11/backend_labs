@@ -3,28 +3,27 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     AsyncSession
 )
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import MetaData, NullPool
 
 from src.settings import settings
+from src.constants import DB_NAMING_CONVENTION
 
 
-class DatabaseHandler:
-    def __init__(self, url: str, echo: bool = False) -> None:
-        self.engine = create_async_engine(url, echo=echo)
-        self.session_factory = async_sessionmaker(
-            bind=self.engine,
+class Base(DeclarativeBase):
+    metadata = MetaData(naming_convention=DB_NAMING_CONVENTION)
+    pass
+
+
+engine = create_async_engine(
+    url=settings.db.url,
+    echo=settings.db.echo
+)
+
+async_session_maker = async_sessionmaker(
+            bind=engine,
             autoflush=False,
             autocommit=False,
             expire_on_commit=False
         )
-
-    async def get_session(self) -> AsyncSession:
-        async with self.session_factory() as session:
-            yield session
-
-
-databaseHandler = DatabaseHandler(
-    url=settings.db.url,
-    echo=settings.db.echo,
-)
-
 
