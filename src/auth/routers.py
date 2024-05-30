@@ -55,7 +55,7 @@ async def login(
 
 @router.post(
     "/register/",
-    response_model=auth_schemas.User,
+    response_model=auth_schemas.UserResponse,
     status_code=status.HTTP_201_CREATED
 )
 async def register(
@@ -73,7 +73,7 @@ async def tokens(
     return await auth_services.JWTServices.get_all(user_id=user.id)
 
 
-@router.get("/me/", response_model=auth_schemas.User)
+@router.get("/me/", response_model=auth_schemas.UserResponse)
 async def me(
         user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
@@ -86,8 +86,8 @@ async def logout(
         response: Response,
         user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+    await auth_services.AuthService.logout(token=user.token)
     response.delete_cookie('access_token')
-    await auth_services.JWTServices.delete(request.cookies.get('access_token'))
     return {"message": "Logged out successfully"}
 
 

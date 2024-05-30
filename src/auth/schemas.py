@@ -63,17 +63,31 @@ class RegisterRequest(LoginRequest):
         return self
 
 
-class User(BaseModel):
+class UserResponse(BaseModel):
     username: str
     email: EmailStr
     birthday: date
 
 
-class UserCreateDB(User):
+class User(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+    birthday: date
+    token: str | None = None
+
+
+class UserDB(BaseModel):
+    username: str
+    email: EmailStr
+    birthday: date
+
+
+class UserCreateDB(UserDB):
     hashed_password: str
 
 
-class UserUpdateDB(User):
+class UserUpdateDB(UserDB):
     id: int
     hashed_password: str
 
@@ -84,7 +98,6 @@ class Token(BaseModel):
 
 
 class TokenCreateDB(BaseModel):
-    hashed_token: str
     exp: datetime
     user_id: int
 

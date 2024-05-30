@@ -19,7 +19,7 @@ from src.models import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(Text, nullable=False)
     email: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
@@ -31,7 +31,7 @@ class User(Base):
 class Token(Base):
     __tablename__ = "tokens"
 
-    hashed_token: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     exp: Mapped[int] = mapped_column(nullable=False)
 
     user = relationship("User", back_populates="tokens")

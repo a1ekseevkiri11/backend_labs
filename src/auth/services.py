@@ -55,19 +55,17 @@ class JWTServices:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Could not validate credentials: {ex}")
 
-
-
     @classmethod
     async def get_all(
             cls,
             user_id: int,
-    ) -> list[str]:
+    ) -> list[dict]:
         async with async_session_maker() as session:
             db_tokens = await auth_dao.TokenDAO.find_all(
                 session=session,
                 user_id=user_id
             )
-            return [token.hashed_token for token in db_tokens]
+            return [{"id": token.id, "exp": token.exp} for token in db_tokens]
 
     @classmethod
     async def delete(
@@ -75,15 +73,15 @@ class JWTServices:
             token: str,
     ) -> None:
         async with async_session_maker() as session:
-            hashed_token = get_hash(token)
+            token_id = JWTServices.decode(token=token).get("id")
             token = await auth_dao.TokenDAO.find_one_or_none(
                 session=session,
-                hashed_token=hashed_token
+                id=token_id
             )
             if token:
                 await auth_dao.TokenDAO.delete(
                     session=session,
-                    hashed_token=hashed_token
+                    id=token_id
                 )
             await session.commit()
 
@@ -110,19 +108,9 @@ class JWTServices:
         now = datetime.now(timezone.utc)
 
         if expire_timedelta:
-            expire = now + expire_timedelta
+            exp = now + expire_timedelta
         else:
-            expire = now + timedelta(minutes=access_expire_minutes)
-
-        payload = {
-            "sub": str(user_id),
-            "exp": expire,
-            "iat": now,
-        }
-
-        token = auth_schemas.Token(
-            access_token=cls.encode(payload=payload)
-        )
+            exp = now + timedelta(minutes=access_expire_minutes)
 
         async with (async_session_maker() as session):
             count_tokens = await auth_dao.TokenDAO.count(
@@ -141,38 +129,49 @@ class JWTServices:
                 if oldest_token:
                     await auth_dao.TokenDAO.delete(
                         session=session,
-                        hashed_token=oldest_token.hashed_token
+                        id=oldest_token.id
                     )
 
-            await auth_dao.TokenDAO.add(
+            db_token = await auth_dao.TokenDAO.add(
                 session,
                 auth_schemas.TokenCreateDB(
                     user_id=user_id,
-                    hashed_token=get_hash(token.access_token),
-                    exp=expire
+                    exp=exp
                 )
             )
             await session.commit()
+
+        payload = {
+            "id": db_token.id,
+            "sub": str(user_id),
+            "exp": exp,
+            "iat": now,
+        }
+
+        token = auth_schemas.Token(
+            access_token=cls.encode(payload=payload)
+        )
 
         return token
 
     @classmethod
     async def is_valid(
             cls,
-            token: str = Depends(oauth2_scheme),
+            token: str,
     ) -> bool:
         async with async_session_maker() as session:
-            db_token = auth_dao.TokenDAO.find_one_or_none(
-                session=session,
-                hashed_token=get_hash(token)
-            )
-        if db_token is None:
-            return False
-        if db_token.exp < datetime.now(timezone.utc):
-            await cls.delete(token)
-            return False
+            token_id = JWTServices.decode(token=token).get("id")
 
-        return True
+            db_token = await auth_dao.TokenDAO.find_one_or_none(
+                session=session,
+                id=token_id
+            )
+            if db_token is None:
+                return False
+            # if db_token.exp > datetime.now(timezone.utc):
+            #     await cls.delete(token)
+            #     return False
+            return True
 
 
 class UserService:
@@ -236,11 +235,13 @@ class AuthService:
                 session,
                 username=user_data.username
             )
+
         if db_user and is_matched_hash(
             word=user_data.password,
             hashed=db_user.hashed_password
         ):
             return db_user
+
         return None
 
     @classmethod
@@ -250,15 +251,25 @@ class AuthService:
     ) -> Optional[auth_schemas.User]:
         try:
             payload = JWTServices.decode(token=token)
-            if not JWTServices.is_valid(token=token):
-                return None
+            if not await JWTServices.is_valid(token=token):
+                raise InvalidTokenException
 
             user_id = payload.get("sub")
 
             if user_id is None:
                 raise InvalidTokenException
 
-        except Exception:
+        except Exception as ex:
+            print(ex)
             raise InvalidTokenException
 
-        return await UserService.get_user(user_id)
+        user = await UserService.get_user(user_id)
+        user.token = token
+        return user
+
+    @classmethod
+    async def logout(
+            cls,
+            token: str,
+    ) -> None:
+        await JWTServices.delete(token=token)
