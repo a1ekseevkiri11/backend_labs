@@ -32,7 +32,7 @@ class Token(Base):
     __tablename__ = "tokens"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    exp: Mapped[int] = mapped_column(nullable=False)
+    exp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     user = relationship("User", back_populates="tokens")
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

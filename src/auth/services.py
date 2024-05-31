@@ -25,7 +25,7 @@ from src.auth.utils import (
     is_matched_hash,
     OAuth2PasswordBearerWithCookie
 )
-from src.exceptions import InvalidTokenException
+from src import exceptions
 
 
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="/api/auth/login/")
@@ -168,9 +168,9 @@ class JWTServices:
             )
             if db_token is None:
                 return False
-            # if db_token.exp > datetime.now(timezone.utc):
-            #     await cls.delete(token)
-            #     return False
+            if db_token.exp > datetime.now():
+                await cls.delete(token)
+                return False
             return True
 
 
@@ -252,24 +252,16 @@ class AuthService:
         try:
             payload = JWTServices.decode(token=token)
             if not await JWTServices.is_valid(token=token):
-                raise InvalidTokenException
+                raise exceptions.InvalidTokenException
 
             user_id = payload.get("sub")
 
             if user_id is None:
-                raise InvalidTokenException
+                raise exceptions.InvalidTokenException
 
         except Exception as ex:
-            print(ex)
-            raise InvalidTokenException
+            raise exceptions.InvalidTokenException
 
         user = await UserService.get_user(user_id)
         user.token = token
         return user
-
-    @classmethod
-    async def logout(
-            cls,
-            token: str,
-    ) -> None:
-        await JWTServices.delete(token=token)

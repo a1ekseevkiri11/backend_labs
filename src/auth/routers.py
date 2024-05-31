@@ -86,7 +86,7 @@ async def logout(
         response: Response,
         user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
-    await auth_services.AuthService.logout(token=user.token)
+    await auth_services.JWTServices.delete(token=user.token)
     response.delete_cookie('access_token')
     return {"message": "Logged out successfully"}
 
