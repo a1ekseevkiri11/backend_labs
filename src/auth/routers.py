@@ -8,9 +8,7 @@ from fastapi import (
 )
 from fastapi.security import (
     OAuth2PasswordRequestForm,
-    OAuth2PasswordBearer,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 from src.auth import services as auth_services
@@ -19,10 +17,10 @@ from src import exceptions
 from src.settings import settings
 
 
-router = APIRouter(tags=["Auth"], prefix="/auth")
+auth_router = APIRouter(tags=["Auth"], prefix="/auth")
 
 
-@router.post(
+@auth_router.post(
     "/login/",
     response_model=auth_schemas.Token)
 async def login(
@@ -53,7 +51,7 @@ async def login(
     return token
 
 
-@router.post(
+@auth_router.post(
     "/register/",
     response_model=auth_schemas.UserResponse,
     status_code=status.HTTP_201_CREATED
@@ -66,21 +64,21 @@ async def register(
     )
 
 
-@router.get("/tokens/")
+@auth_router.get("/tokens/")
 async def tokens(
         user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     return await auth_services.JWTServices.get_all(user_id=user.id)
 
 
-@router.get("/me/", response_model=auth_schemas.UserResponse)
+@auth_router.get("/me/", response_model=auth_schemas.UserResponse)
 async def me(
         user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     return user
 
 
-@router.post("/out/")
+@auth_router.post("/out/")
 async def logout(
         request: Request,
         response: Response,
@@ -91,7 +89,7 @@ async def logout(
     return {"message": "Logged out successfully"}
 
 
-@router.post("/out_all/")
+@auth_router.post("/out_all/")
 async def logout_all(
         response: Response,
         user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
@@ -100,3 +98,54 @@ async def logout_all(
     await auth_services.JWTServices.delete_all(user_id=user.id)
     return {"message": "ALL Logged out successfully"}
 
+
+user_router = APIRouter(tags=["User"], prefix="/ref/user")
+
+
+@user_router.get(
+    "/{user_id}/",
+    response_model=auth_schemas.UserResponse
+)
+async def user_get(
+        user_id: int,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await auth_services.UserService.get(user_id=user_id)
+
+
+@user_router.get(
+    "/",
+    response_model=list[auth_schemas.UserResponse]
+)
+async def user_get_all(
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await auth_services.UserService.get_all()
+
+
+@user_router.put(
+    "{user_id}",
+    response_model=auth_schemas.UserResponse
+)
+async def user_update(
+        user_id: int,
+        user_data: auth_schemas.UserRequest,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
+):
+    return await auth_services.UserService.update(
+        user_id=user_id,
+        user_data=user_data,
+    )
+
+
+@user_router.delete(
+    "user_id",
+)
+async def user_delete(
+        user_id: int,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
+):
+    await auth_services.UserService.delete(
+        user_id=user_id,
+    )
+    return {"message": "User deleted successfully"}

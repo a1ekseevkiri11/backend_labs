@@ -21,6 +21,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 
 from src.auth import models
+from src.role_policy import models
 from src.models import Base
 from src.settings import settings
 

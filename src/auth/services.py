@@ -17,7 +17,6 @@ from datetime import datetime
 from src.auth import schemas as auth_schemas
 from src.auth import dao as auth_dao
 from src.auth import models as auth_models
-
 from src.database import async_session_maker
 from src.settings import settings
 from src.auth.utils import (
@@ -175,20 +174,19 @@ class JWTServices:
 
 
 class UserService:
-    @classmethod
+    @staticmethod
     async def add(
-            cls,
             user_data: auth_schemas.RegisterRequest,
     ) -> auth_schemas.User:
         async with async_session_maker() as session:
-            user_exist = await auth_dao.UserDao.find_one_or_none(session, username=user_data.username)
+            user_exist = await auth_dao.UserDAO.find_one_or_none(session, username=user_data.username)
             if user_exist:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="User with this username already exists"
                 )
 
-            user_exist = await auth_dao.UserDao.find_one_or_none(session, email=user_data.email)
+            user_exist = await auth_dao.UserDAO.find_one_or_none(session, email=user_data.email)
 
             if user_exist:
                 raise HTTPException(
@@ -196,7 +194,7 @@ class UserService:
                     detail="User with this email already exists"
                 )
 
-            db_user = await auth_dao.UserDao.add(
+            db_user = await auth_dao.UserDAO.add(
                 session,
                 auth_schemas.UserCreateDB(
                     **user_data.model_dump(),
@@ -207,13 +205,12 @@ class UserService:
 
         return db_user
 
-    @classmethod
-    async def get_user(
-            cls,
+    @staticmethod
+    async def get(
             user_id: int
     ) -> auth_schemas.User:
         async with async_session_maker() as session:
-            db_user = await auth_dao.UserDao.find_one_or_none(
+            db_user = await auth_dao.UserDAO.find_one_or_none(
                 session,
                 id=user_id
             )
@@ -223,15 +220,78 @@ class UserService:
             )
         return db_user
 
+    @staticmethod
+    async def get_all(
+    ) -> list[auth_schemas.User]:
+        async with async_session_maker() as session:
+            db_user = await auth_dao.UserDAO.find_all(
+                session=session,
+            )
+
+        return [user for user in db_user]
+
+    @classmethod
+    async def update(
+            cls,
+            user_id: int,
+            user_data: auth_schemas.UserRequest,
+    ) -> auth_schemas.User:
+        await cls.get(user_id=user_id)
+        async with async_session_maker() as session:
+            user_exist = await auth_dao.UserDAO.find_one_or_none(
+                session,
+                auth_models.User.username == user_data.username,
+            )
+            if user_exist and user_exist.id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="User with this username already exist"
+                )
+
+            user_exist = await auth_dao.UserDAO.find_one_or_none(
+                session,
+                auth_models.User.email == user_data.email,
+            )
+            if user_exist and user_exist.id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="User with this email already exist"
+                )
+
+            update_db_user = auth_schemas.UserUpdateDB(
+                **user_data.model_dump(),
+            )
+
+            db_permission = await auth_dao.UserDAO.update(
+                session,
+                auth_models.User.id == user_id,
+                obj_in=update_db_user,
+            )
+            await session.commit()
+
+        return db_permission
+
+    @classmethod
+    async def delete(
+            cls,
+            user_id: int
+    ) -> None:
+        await cls.get(user_id=user_id)
+        async with async_session_maker() as session:
+            await auth_dao.UserDAO.delete(
+                session=session,
+                id=user_id,
+            )
+            await session.commit()
+
 
 class AuthService:
-    @classmethod
+    @staticmethod
     async def login(
-            cls,
             user_data: auth_schemas.LoginRequest,
     ) -> Optional[auth_schemas.User]:
         async with async_session_maker() as session:
-            db_user = await auth_dao.UserDao.find_one_or_none(
+            db_user = await auth_dao.UserDAO.find_one_or_none(
                 session,
                 username=user_data.username
             )
@@ -244,9 +304,8 @@ class AuthService:
 
         return None
 
-    @classmethod
+    @staticmethod
     async def get_current_user(
-            cls,
             token: str = Depends(oauth2_scheme),
     ) -> Optional[auth_schemas.User]:
         try:
@@ -262,6 +321,6 @@ class AuthService:
         except Exception as ex:
             raise exceptions.InvalidTokenException
 
-        user = await UserService.get_user(user_id)
+        user = await UserService.get(user_id)
         user.token = token
         return user

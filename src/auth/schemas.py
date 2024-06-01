@@ -21,18 +21,18 @@ class LoginRequest(BaseModel):
 
     @classmethod
     @field_validator('username')
-    def username_validator(cls, password: str) -> str:
-        if len(password) < 7:
+    def username_validator(cls, username: str) -> str:
+        if len(username) < 7:
             raise ValueError(
                 'Username must be longer than 7 characters'
             )
 
-        if not re.match(r'^[A-Z][a-z]+$', password):
+        if not re.match(r'^[A-Z][a-z]+$', username):
             raise ValueError(
                 'Username must start with an uppercase letter and contain only letters of the Latin alphabet'
             )
 
-        return password.title()
+        return username.title()
 
     @model_validator(mode='after')
     def passwords__validator(self) -> Self:
@@ -63,6 +63,27 @@ class RegisterRequest(LoginRequest):
         return self
 
 
+class UserRequest(BaseModel):
+    username: str
+    email: EmailStr
+    birthday: date
+
+    @classmethod
+    @field_validator('username')
+    def username_validator(cls, username: str) -> str:
+        if len(username) < 7:
+            raise ValueError(
+                'Username must be longer than 7 characters'
+            )
+
+        if not re.match(r'^[A-Z][a-z]+$', username):
+            raise ValueError(
+                'Username must start with an uppercase letter and contain only letters of the Latin alphabet'
+            )
+
+        return username.title()
+
+
 class UserResponse(BaseModel):
     username: str
     email: EmailStr
@@ -77,19 +98,17 @@ class User(BaseModel):
     token: str | None = None
 
 
-class UserDB(BaseModel):
+class UserCreateDB(BaseModel):
     username: str
     email: EmailStr
     birthday: date
-
-
-class UserCreateDB(UserDB):
     hashed_password: str
 
 
-class UserUpdateDB(UserDB):
-    id: int
-    hashed_password: str
+class UserUpdateDB(BaseModel):
+    username: str
+    email: EmailStr
+    birthday: date
 
 
 class Token(BaseModel):

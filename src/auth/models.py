@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey
 )
 from src.models import Base
+from src.role_policy import models
 
 
 class User(Base):
@@ -27,6 +28,13 @@ class User(Base):
 
     tokens: Mapped["Token"] = relationship(back_populates="user", uselist=True)
 
+    roles: Mapped[list["Role"]] = relationship(
+        back_populates="users",
+        secondary="users_and_roles",
+        uselist=True,
+        lazy="selectin"
+    )
+
 
 class Token(Base):
     __tablename__ = "tokens"
@@ -36,4 +44,3 @@ class Token(Base):
 
     user = relationship("User", back_populates="tokens")
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-

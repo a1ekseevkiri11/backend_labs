@@ -3,7 +3,7 @@ from src.auth import schemas
 from src import dao
 
 
-class UserDao(dao.BaseDAO[models.User, schemas.UserCreateDB, schemas.UserUpdateDB]):
+class UserDAO(dao.BaseDAO[models.User, schemas.UserCreateDB, schemas.UserUpdateDB]):
     model = models.User
 
 
