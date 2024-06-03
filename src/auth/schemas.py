@@ -55,12 +55,16 @@ class RegisterRequest(LoginRequest):
     birthday: date
 
     @model_validator(mode='after')
-    def passwords__validator(self) -> Self:
+    def passwords__match(self) -> Self:
+
+        self.username_validator(self.username)
 
         if self.password != self.c_password:
             raise ValueError('Passwords do not match')
 
         return self
+
+
 
 
 class UserResponse(BaseModel):
