@@ -104,6 +104,10 @@ class JWTServices:
             expire_timedelta: timedelta | None = None,
             access_expire_minutes: int = settings.auth_jwt.access_token_expire_minutes,
     ) -> auth_schemas.Token:
+        if settings.auth_jwt.count_tokens < 0:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="the number of tokens must be greater than 0")
 
         now = datetime.now(timezone.utc)
 
@@ -113,25 +117,6 @@ class JWTServices:
             exp = now + timedelta(minutes=access_expire_minutes)
 
         async with (async_session_maker() as session):
-            count_tokens = await auth_dao.TokenDAO.count(
-                session,
-                user_id=user_id
-            )
-            if count_tokens >= settings.auth_jwt.count_tokens:
-                stmt = (
-                    select(auth_models.Token)
-                    .filter(auth_models.Token.user_id == user_id)
-                    .order_by(asc(auth_models.Token.exp))
-                    .limit(1)
-                )
-                result = await session.execute(stmt)
-                oldest_token = result.scalars().first()
-                if oldest_token:
-                    await auth_dao.TokenDAO.delete(
-                        session=session,
-                        id=oldest_token.id
-                    )
-
             db_token = await auth_dao.TokenDAO.add(
                 session,
                 auth_schemas.TokenCreateDB(
@@ -139,20 +124,40 @@ class JWTServices:
                     exp=exp
                 )
             )
+            count_tokens = await auth_dao.TokenDAO.count(
+                session,
+                user_id=user_id
+            )
+
+            if count_tokens >= settings.auth_jwt.count_tokens:
+                stmt = (
+                    select(auth_models.Token)
+                    .filter(auth_models.Token.user_id == user_id)
+                    .order_by(asc(auth_models.Token.exp))
+                    .limit(count_tokens - settings.auth_jwt.count_tokens)
+                )
+                result = await session.execute(stmt)
+                oldest_tokens = result.scalars().all()
+                for oldest_token in oldest_tokens:
+                    await auth_dao.TokenDAO.delete(
+                        session=session,
+                        id=oldest_token.id
+                    )
+
             await session.commit()
 
-        payload = {
-            "id": db_token.id,
-            "sub": str(user_id),
-            "exp": exp,
-            "iat": now,
-        }
+            payload = {
+                "id": db_token.id,
+                "sub": str(user_id),
+                "exp": exp,
+                "iat": now,
+            }
 
-        token = auth_schemas.Token(
-            access_token=cls.encode(payload=payload)
-        )
+            token = auth_schemas.Token(
+                access_token=cls.encode(payload=payload)
+            )
 
-        return token
+            return token
 
     @classmethod
     async def is_valid(
@@ -204,8 +209,7 @@ class UserService:
                 )
             )
             await session.commit()
-
-        return db_user
+            return db_user
 
     @classmethod
     async def get_user(
@@ -217,11 +221,11 @@ class UserService:
                 session,
                 id=user_id
             )
-        if db_user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
-        return db_user
+            if db_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+                )
+            return db_user
 
 
 class AuthService:
@@ -236,13 +240,13 @@ class AuthService:
                 username=user_data.username
             )
 
-        if db_user and is_matched_hash(
-            word=user_data.password,
-            hashed=db_user.hashed_password
-        ):
-            return db_user
+            if db_user and is_matched_hash(
+                word=user_data.password,
+                hashed=db_user.hashed_password
+            ):
+                return db_user
 
-        return None
+            return None
 
     @classmethod
     async def get_current_user(
