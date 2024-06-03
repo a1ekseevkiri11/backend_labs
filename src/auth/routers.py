@@ -13,6 +13,7 @@ from fastapi.security import (
 
 from src.auth import services as auth_services
 from src.auth import schemas as auth_schemas
+from src.role_policy import schemas as role_policy_schemas
 from src import exceptions
 from src.settings import settings
 
@@ -113,6 +114,19 @@ async def user_get(
     return await auth_services.UserService.get(user_id=user_id)
 
 
+@user_router.post(
+    "/",
+    response_model=auth_schemas.UserResponse
+)
+async def user_add(
+        user_data: auth_schemas.RegisterRequest,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await auth_services.UserService.add(
+        user_data=user_data,
+        current_user_id=user.id
+    )
+
 @user_router.get(
     "/",
     response_model=list[auth_schemas.UserResponse]
@@ -124,7 +138,7 @@ async def user_get_all(
 
 
 @user_router.put(
-    "{user_id}",
+    "/{user_id}/",
     response_model=auth_schemas.UserResponse
 )
 async def user_update(
@@ -139,7 +153,7 @@ async def user_update(
 
 
 @user_router.delete(
-    "user_id",
+    "/{user_id}/",
 )
 async def user_delete(
         user_id: int,
@@ -149,3 +163,49 @@ async def user_delete(
         user_id=user_id,
     )
     return {"message": "User deleted successfully"}
+
+
+@user_router.get(
+    "/{user_id}/role/",
+    response_model=list[role_policy_schemas.RoleResponse]
+)
+async def user_get_all_roles(
+        user_id: int,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    roles = await auth_services.UserService.get_all_roles(
+        user_id=user_id,
+    )
+    return roles
+
+
+@user_router.post(
+    "/{user_id}/role/{role_id}/",
+    response_model=list[role_policy_schemas.RoleResponse]
+)
+async def user_add_role(
+        user_id: int,
+        role_id: int,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    roles = await auth_services.UserService.add_role(
+        current_user_id=user.id,
+        user_id=user_id,
+        role_id=role_id,
+    )
+    return roles
+
+
+@user_router.delete(
+    "/{user_id}/role/{role_id}/",
+    response_model=list[role_policy_schemas.RoleResponse]
+)
+async def user_delete_role(
+        user_id: int,
+        role_id: int,
+        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await auth_services.UserService.delete_role(
+        user_id=user_id,
+        role_id=role_id,
+    )

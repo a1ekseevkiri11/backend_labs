@@ -14,17 +14,11 @@ from sqlalchemy import (
     ForeignKey,
     func,
 )
-from src.models import Base
+from src.models import (
+    Base,
+    BaseServiceFields
+)
 from src.auth import models
-
-
-class BaseServiceFields(Base):
-    __abstract__ = True
-
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    created_by: Mapped[int] = mapped_column(nullable=False)
-    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-    deleted_by: Mapped[datetime] = mapped_column(nullable=True)
 
 
 class BaseEntity(BaseServiceFields):
@@ -40,17 +34,48 @@ class Role(BaseEntity):
     __tablename__ = 'roles'
 
     users: Mapped[list["User"]] = relationship(
-        back_populates="roles",
+        "User",
         secondary="users_and_roles",
-        uselist=True,
-        # lazy="selectin"
+        back_populates="roles",
+        lazy="selectin"
+    )
+
+    users_associations: Mapped[list["UsersAndRoles"]] = relationship(
+        "UsersAndRoles",
+        back_populates="role",
+        lazy="selectin"
     )
 
     permissions: Mapped[list["Permission"]] = relationship(
         back_populates="roles",
         secondary="roles_and_permissions",
-        uselist=True,
-        # lazy="selectin"
+        lazy="selectin"
+    )
+
+    # permissions_associations: Mapped[list["RolesAndPermissions"]] = relationship(
+    #     "RolesAndPermissions",
+    #     back_populates="role",
+    #     lazy="selectin"
+    # )
+
+
+
+class UsersAndRoles(BaseServiceFields):
+    __tablename__ = 'users_and_roles'
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), primary_key=True)
+
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="roles_associations",
+        lazy="selectin"
+    )
+
+    role: Mapped["Role"] = relationship(
+        "Role",
+        back_populates="users_associations",
+        lazy="selectin"
     )
 
 
@@ -61,15 +86,9 @@ class Permission(BaseEntity):
         back_populates="permissions",
         secondary="roles_and_permissions",
         uselist=True,
-        # lazy="selectin"
+        foreign_keys="[RolesAndPermissions.permissions_id, RolesAndPermissions.roles_id]",
+        lazy="selectin"
     )
-
-
-class UsersAndRoles(BaseServiceFields):
-    __tablename__ = 'users_and_roles'
-
-    users_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    roles_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), primary_key=True)
 
 
 class RolesAndPermissions(BaseServiceFields):

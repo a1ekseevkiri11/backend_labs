@@ -25,6 +25,9 @@ from src.auth.utils import (
     OAuth2PasswordBearerWithCookie
 )
 from src import exceptions
+from src.role_policy import dao as role_policy_dao
+from src.role_policy import models as role_policy_models
+from src.role_policy import schemas as role_policy_schemas
 
 
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="/api/auth/login/")
@@ -177,6 +180,7 @@ class UserService:
     @staticmethod
     async def add(
             user_data: auth_schemas.RegisterRequest,
+            current_user_id: Optional[int] = None,
     ) -> auth_schemas.User:
         async with async_session_maker() as session:
             user_exist = await auth_dao.UserDAO.find_one_or_none(session, username=user_data.username)
@@ -193,14 +197,24 @@ class UserService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail="User with this email already exists"
                 )
-
-            db_user = await auth_dao.UserDAO.add(
-                session,
-                auth_schemas.UserCreateDB(
-                    **user_data.model_dump(),
-                    hashed_password=get_hash(user_data.password)
+            if current_user_id:
+                db_user = await auth_dao.UserDAO.add(
+                    session,
+                    auth_schemas.UserCreateDB(
+                        **user_data.model_dump(),
+                        hashed_password=get_hash(user_data.password),
+                        created_by=current_user_id
+                    )
                 )
-            )
+            else:
+                db_user = await auth_dao.UserDAO.add(
+                    session,
+                    auth_schemas.UserCreateDB(
+                        **user_data.model_dump(),
+                        hashed_password=get_hash(user_data.password),
+                    )
+                )
+                db_user.created_by = db_user.id
             await session.commit()
 
         return db_user
@@ -283,6 +297,109 @@ class UserService:
                 id=user_id,
             )
             await session.commit()
+
+    @staticmethod
+    async def get_all_roles(
+            user_id: int,
+    ) -> list[role_policy_schemas.Role]:
+        async with async_session_maker() as session:
+            db_user = await auth_dao.UserDAO.find_one_or_none(
+                session=session,
+                id=user_id,
+            )
+            if db_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+                )
+        return db_user.roles
+
+    @staticmethod
+    async def check_role(
+            user_id: int,
+            role_id: int
+    ) -> bool:
+        async with async_session_maker() as session:
+            stm = (
+                select(role_policy_models.Role)
+                .join(role_policy_models.UsersAndRoles)
+                .join(auth_models.User)
+                .filter(auth_models.User.id == user_id)
+                .filter(role_policy_models.Role.id == role_id)
+                .exists()
+            )
+            role_exists = await session.execute(stm)
+            return role_exists.scalar()
+
+    @classmethod
+    async def add_role(
+            cls,
+            current_user_id: int,
+            user_id: int,
+            role_id: int,
+    ) -> list[role_policy_schemas.Role]:
+        async with async_session_maker() as session:
+            db_user = await auth_dao.UserDAO.find_one_or_none(
+                session=session,
+                id=user_id,
+            )
+            if db_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+                )
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none(
+                session=session,
+                id=role_id
+            )
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+            for role in db_user.roles:
+                if role.id == role_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT, detail="User with this role already exist",
+                    )
+            db_user.roles_associations.append(
+                role_policy_models.UsersAndRoles(
+                    role=db_role,
+                    created_by=current_user_id
+                )
+            )
+            await session.commit()
+            return await cls.get_all_roles(user_id=user_id)
+
+    @classmethod
+    async def delete_role(
+            cls,
+            user_id: int,
+            role_id: int,
+    ) -> list[role_policy_schemas.Role]:
+        async with async_session_maker() as session:
+            db_user = await auth_dao.UserDAO.find_one_or_none(
+                session=session,
+                id=user_id,
+            )
+            if db_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found",
+                )
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none(
+                session=session,
+                id=role_id
+            )
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found",
+                )
+            for role in db_user.roles:
+                if role.id == role_id:
+                    db_user.roles.remove(db_role)
+                    await session.commit()
+                    return await cls.get_all_roles(user_id=user_id)
+
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User does not have this role",
+            )
 
 
 class AuthService:

@@ -11,13 +11,17 @@ from sqlalchemy import (
     Text,
     Date,
     DateTime,
-    ForeignKey
+    ForeignKey,
 )
-from src.models import Base
+from typing import Optional
+from src.models import (
+    Base,
+    BaseServiceFields,
+)
 from src.role_policy import models
 
 
-class User(Base):
+class User(BaseServiceFields):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -26,21 +30,25 @@ class User(Base):
     email: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     birthday: Mapped[date] = mapped_column(Date, nullable=False)
 
-    tokens: Mapped["Token"] = relationship(back_populates="user", uselist=True)
+    tokens: Mapped["Token"] = relationship(back_populates="user")
 
     roles: Mapped[list["Role"]] = relationship(
-        back_populates="users",
+        "Role",
         secondary="users_and_roles",
-        uselist=True,
+        back_populates="users",
         lazy="selectin"
+    )
+
+    roles_associations: Mapped[list["UsersAndRoles"]] = relationship(
+        "UsersAndRoles",
+        back_populates="user",
+        lazy="selectin",
     )
 
 
 class Token(Base):
     __tablename__ = "tokens"
-
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     exp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
     user = relationship("User", back_populates="tokens")
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

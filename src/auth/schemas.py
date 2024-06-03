@@ -9,10 +9,9 @@ from pydantic import (
     field_validator,
 )
 from datetime import date, datetime
-
 from typing_extensions import Self
-
 import re
+from typing import Optional
 
 
 class LoginRequest(BaseModel):
@@ -55,7 +54,8 @@ class RegisterRequest(LoginRequest):
     birthday: date
 
     @model_validator(mode='after')
-    def passwords__validator(self) -> Self:
+    def passwords_match(self) -> Self:
+        validated_username = self.username_validator(self.username)
 
         if self.password != self.c_password:
             raise ValueError('Passwords do not match')
@@ -103,6 +103,7 @@ class UserCreateDB(BaseModel):
     email: EmailStr
     birthday: date
     hashed_password: str
+    created_by: Optional[int] = None
 
 
 class UserUpdateDB(BaseModel):

@@ -1,8 +1,8 @@
-"""create roles, permisson
+"""first migration
 
-Revision ID: 2e569cea206e
-Revises: b96f5891696f
-Create Date: 2024-06-01 22:36:37.104925
+Revision ID: d08d39fd0bf1
+Revises: 
+Create Date: 2024-06-03 04:33:36.390989
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '2e569cea206e'
-down_revision: Union[str, None] = 'b96f5891696f'
+revision: str = 'd08d39fd0bf1'
+down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -25,10 +25,10 @@ def upgrade() -> None:
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('cipher', sa.Text(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_by', sa.Integer(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deleted_by', sa.DateTime(), nullable=True),
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('title')
     )
@@ -37,34 +37,55 @@ def upgrade() -> None:
     sa.Column('title', sa.Text(), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('cipher', sa.Text(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_by', sa.Integer(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deleted_by', sa.DateTime(), nullable=True),
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('title')
+    )
+    op.create_table('users',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('username', sa.Text(), nullable=False),
+    sa.Column('hashed_password', sa.Text(), nullable=False),
+    sa.Column('email', sa.Text(), nullable=False),
+    sa.Column('birthday', sa.Date(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_by', sa.Integer(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('email'),
+    sa.UniqueConstraint('username')
     )
     op.create_table('roles_and_permissions',
     sa.Column('roles_id', sa.Integer(), nullable=False),
     sa.Column('permissions_id', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_by', sa.Integer(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deleted_by', sa.DateTime(), nullable=True),
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['permissions_id'], ['permissions.id'], ),
     sa.ForeignKeyConstraint(['roles_id'], ['roles.id'], ),
     sa.PrimaryKeyConstraint('roles_id', 'permissions_id')
     )
+    op.create_table('tokens',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('exp', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('users_and_roles',
-    sa.Column('users_id', sa.Integer(), nullable=False),
-    sa.Column('roles_id', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('role_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_by', sa.Integer(), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deleted_by', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['roles_id'], ['roles.id'], ),
-    sa.ForeignKeyConstraint(['users_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('users_id', 'roles_id')
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('user_id', 'role_id')
     )
     # ### end Alembic commands ###
 
@@ -72,7 +93,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('users_and_roles')
+    op.drop_table('tokens')
     op.drop_table('roles_and_permissions')
+    op.drop_table('users')
     op.drop_table('roles')
     op.drop_table('permissions')
     # ### end Alembic commands ###
