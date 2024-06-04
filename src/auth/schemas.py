@@ -27,7 +27,7 @@ class LoginRequest(BaseModel):
                 'Username must be longer than 7 characters'
             )
 
-        if not re.match(r'^[A-Z][a-z]+$', password):
+        if not re.match(r'^[A-Z][a-zA-Z]+$', password):
             raise ValueError(
                 'Username must start with an uppercase letter and contain only letters of the Latin alphabet'
             )
