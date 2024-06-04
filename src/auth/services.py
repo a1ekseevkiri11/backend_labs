@@ -305,6 +305,48 @@ class UserService:
             )
             await session.commit()
 
+    @classmethod
+    async def soft_delete(
+            cls,
+            current_user_id: int,
+            user_id: int,
+    ) -> None:
+        async with async_session_maker() as session:
+            db_user = await auth_dao.UserDAO.find_one_or_none(
+                session,
+                auth_schemas.User.id == user_id
+            )
+
+            if db_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+                )
+            now = datetime.now(timezone.utc)
+            db_user.deleted_at = now
+            db_user.deleted_by = current_user_id
+            await session.commit()
+
+    @classmethod
+    async def restore(
+            cls,
+            user_id: int,
+    ) -> auth_schemas.User:
+        async with async_session_maker() as session:
+            db_role = await auth_dao.UserDAO.find_one_or_none_with_deleted(
+                session,
+                auth_schemas.User.id == role_id
+            )
+
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+
+            db_role.deleted_at = None
+            db_role.deleted_by = None
+            await session.commit()
+            return await cls.get(user_id=user_id)
+
     @staticmethod
     async def get_all_roles(
             user_id: int,
@@ -324,36 +366,50 @@ class UserService:
     async def check_role(
             user_id: int,
             role_title: str
-    ) -> None:
+    ) -> bool:
         async with async_session_maker() as session:
             stm = (
                 select(exists().where(
                     and_(
                         auth_models.User.id == user_id,
                         role_policy_models.UsersAndRoles.user_id == auth_models.User.id,
+                        role_policy_models.UsersAndRoles.role_id == role_policy_models.Role.id,
                         role_policy_models.Role.title == role_title
                     )
                 ))
             )
             role_exists = await session.execute(stm)
-            if not role_exists.scalar():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"User haven't role {role_title}",
-                )
+            return role_exists.scalar()
 
-    @staticmethod
+    @classmethod
     async def check_permission(
+            cls,
             user_id: int,
-            permission_title: str
-    ) -> None:
+            permission_title: str,
+            request_user_id: Optional[int] = None
+    ):
+        if await cls.check_role(
+            user_id=user_id,
+            role_title="Admin"
+        ):
+            return
+
+        if request_user_id and request_user_id != user_id and await cls.check_role(
+            role_title="User",
+            user_id=user_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="user with the “User” role cannot work with data other than his own"
+            )
+
         async with async_session_maker() as session:
             stm = (
                 select(exists().where(
                     and_(
-                        auth_models.User.id == user_id,
-                        role_policy_models.UsersAndRoles.user_id == auth_models.User.id,
-                        role_policy_models.RolesAndPermissions.roles_id == role_policy_models.UsersAndRoles.role_id,
+                        user_id == auth_models.User.id,
+                        auth_models.User.id == role_policy_models.UsersAndRoles.user_id,
+                        role_policy_models.UsersAndRoles.role_id == role_policy_models.RolesAndPermissions.roles_id,
                         role_policy_models.RolesAndPermissions.permissions_id == role_policy_models.Permission.id,
                         role_policy_models.Permission.title == permission_title
                     )
@@ -365,7 +421,6 @@ class UserService:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"User haven't permission {permission_title}",
                 )
-
 
     @classmethod
     async def add_role(

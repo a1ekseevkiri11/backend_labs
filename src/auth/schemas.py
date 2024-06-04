@@ -13,6 +13,9 @@ from typing_extensions import Self
 import re
 from typing import Optional
 
+from src.role_policy.schemas import (
+    RoleResponse,
+)
 
 class LoginRequest(BaseModel):
     username: str
@@ -85,9 +88,11 @@ class UserRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    id: int
     username: str
     email: EmailStr
     birthday: date
+    roles: list[RoleResponse]
 
 
 class User(BaseModel):
@@ -123,5 +128,5 @@ class TokenCreateDB(BaseModel):
 
 
 class TokenUpdateDB(TokenCreateDB):
-    id: int
+    pass
 

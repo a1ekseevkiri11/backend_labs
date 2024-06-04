@@ -104,6 +104,21 @@ user_router = APIRouter(tags=["User"], prefix="/ref/user")
 
 
 @user_router.get(
+    "/",
+    response_model=list[auth_schemas.UserResponse]
+)
+async def user_get_all(
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    await auth_services.UserService.check_permission(
+        permission_title="get-list-users",
+        user_id=current_user.id
+    )
+
+    return await auth_services.UserService.get_all()
+
+
+@user_router.get(
     "/{user_id}/",
     response_model=auth_schemas.UserResponse
 )
@@ -111,6 +126,12 @@ async def user_get(
         user_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+    await auth_services.UserService.check_permission(
+        permission_title="read-users",
+        user_id=current_user.id,
+        request_user_id=user_id
+    )
+
     return await auth_services.UserService.get(user_id=user_id)
 
 
@@ -122,22 +143,14 @@ async def user_add(
         user_data: auth_schemas.RegisterRequest,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+    await auth_services.UserService.check_permission(
+        permission_title="create-users",
+        user_id=current_user.id,
+    )
     return await auth_services.UserService.add(
         user_data=user_data,
         current_user_id=current_user.id
     )
-
-
-@user_router.get(
-    "/",
-    response_model=list[auth_schemas.UserResponse]
-)
-async def user_get_all(
-        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
-):
-    # await auth_services.UserService.check_permission(permission_title="view", user_id=current_user.id)
-
-    return await auth_services.UserService.get_all()
 
 
 @user_router.put(
@@ -149,6 +162,11 @@ async def user_update(
         user_data: auth_schemas.UserRequest,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
 ):
+    await auth_services.UserService.check_permission(
+        permission_title="update-users",
+        user_id=current_user.id,
+        request_user_id=user_id
+    )
     return await auth_services.UserService.update(
         user_id=user_id,
         user_data=user_data,
@@ -162,10 +180,49 @@ async def user_delete(
         user_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
 ):
+    await auth_services.UserService.check_permission(
+        permission_title="delete-users",
+        user_id=current_user.id
+    )
     await auth_services.UserService.delete(
         user_id=user_id,
     )
     return {"message": "User deleted successfully"}
+
+
+@user_router.delete(
+    "/{user_id}/soft/",
+)
+async def user_soft_delete(
+        user_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
+):
+    await auth_services.UserService.check_permission(
+        permission_title="delete-users",
+        user_id=current_user.id
+    )
+    await auth_services.UserService.soft_delete(
+        current_user_id=current_user.id,
+        user_id=user_id,
+    )
+    return {"message": "User soft deleted successfully"}
+
+
+@user_router.delete(
+    "/{user_id}/restore/",
+    response_model=auth_schemas.UserResponse
+)
+async def user_restore(
+        user_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
+):
+    await auth_services.UserService.check_permission(
+        permission_title="restore-users",
+        user_id=current_user.id
+    )
+    return await auth_services.UserService.restore(
+        user_id=user_id,
+    )
 
 
 @user_router.get(
@@ -176,11 +233,14 @@ async def user_get_all_roles(
         user_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
-
-    roles = await auth_services.UserService.get_all_roles(
+    await auth_services.UserService.check_permission(
+        permission_title="update-users",
+        user_id=current_user.id,
+        request_user_id=user_id
+    )
+    return await auth_services.UserService.get_all_roles(
         user_id=user_id,
     )
-    return roles
 
 
 @user_router.post(
@@ -192,6 +252,10 @@ async def user_add_role(
         role_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+    await auth_services.UserService.check_permission(
+        permission_title="create-users",
+        user_id=current_user.id,
+    )
     roles = await auth_services.UserService.add_role(
         current_user_id=current_user.id,
         user_id=user_id,
@@ -209,6 +273,10 @@ async def user_delete_role(
         role_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+    await auth_services.UserService.check_permission(
+        permission_title="delete-users",
+        user_id=current_user.id
+    )
     return await auth_services.UserService.delete_role(
         user_id=user_id,
         role_id=role_id,

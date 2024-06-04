@@ -241,7 +241,7 @@ class RoleService:
             await session.commit()
 
     @classmethod
-    async def refresh(
+    async def restore(
             cls,
             role_id: int,
     ) -> role_policy_schemas.Role:
@@ -365,4 +365,44 @@ class PermissionService:
             )
             await session.commit()
 
-    # TODO: дописать мягкое удаление и востановление
+    @classmethod
+    async def soft_delete(
+            cls,
+            current_user_id: int,
+            permission_id: int,
+    ) -> None:
+        async with async_session_maker() as session:
+            db_permission = await role_policy_dao.PermissionDAO.find_one_or_none(
+                session,
+                role_policy_models.Permission.id == permission_id
+            )
+
+            if db_permission is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found"
+                )
+            now = datetime.now(timezone.utc)
+            db_permission.deleted_at = now
+            db_permission.deleted_by = current_user_id
+            await session.commit()
+
+    @classmethod
+    async def restore(
+            cls,
+            permission_id: int,
+    ) -> role_policy_schemas.Permission:
+        async with async_session_maker() as session:
+            db_permission = await role_policy_dao.PermissionDAO.find_one_or_none_with_deleted(
+                session,
+                role_policy_models.Permission.id == permission_id
+            )
+
+            if db_permission is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found"
+                )
+
+            db_permission.deleted_at = None
+            db_permission.deleted_by = None
+            await session.commit()
+            return await cls.get(permission_id=permission_id)
