@@ -3,6 +3,7 @@ from sqlalchemy.orm import (
     Mapped,
     mapped_column,
     declared_attr,
+    Query,
 )
 
 from datetime import date, datetime
@@ -10,18 +11,22 @@ from sqlalchemy import (
     Text,
     Date,
     DateTime,
-    func,
+    func
 )
+from sqlalchemy_easy_softdelete.mixin import generate_soft_delete_mixin_class
 
 
 class Base(DeclarativeBase):
     __abstract__ = True
 
 
-class BaseServiceFields(Base):
+class SoftDeleteMixin(generate_soft_delete_mixin_class()):
+    deleted_at: datetime
+
+
+class BaseServiceFields(Base, SoftDeleteMixin):
     __abstract__ = True
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     created_by: Mapped[int] = mapped_column(default=-1)
-    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_by: Mapped[int] = mapped_column(nullable=True)

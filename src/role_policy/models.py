@@ -52,11 +52,11 @@ class Role(BaseEntity):
         lazy="selectin"
     )
 
-    # permissions_associations: Mapped[list["RolesAndPermissions"]] = relationship(
-    #     "RolesAndPermissions",
-    #     back_populates="role",
-    #     lazy="selectin"
-    # )
+    permissions_associations: Mapped[list["RolesAndPermissions"]] = relationship(
+        "RolesAndPermissions",
+        back_populates="role",
+        lazy="selectin"
+    )
 
 
 
@@ -83,10 +83,15 @@ class Permission(BaseEntity):
     __tablename__ = 'permissions'
 
     roles: Mapped[list["Role"]] = relationship(
+        "Role",
         back_populates="permissions",
         secondary="roles_and_permissions",
-        uselist=True,
-        foreign_keys="[RolesAndPermissions.permissions_id, RolesAndPermissions.roles_id]",
+        lazy="selectin"
+    )
+
+    roles_associations: Mapped[list["RolesAndPermissions"]] = relationship(
+        "RolesAndPermissions",
+        back_populates="permission",
         lazy="selectin"
     )
 
@@ -96,3 +101,15 @@ class RolesAndPermissions(BaseServiceFields):
 
     roles_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), primary_key=True)
     permissions_id: Mapped[int] = mapped_column(ForeignKey("permissions.id"), primary_key=True)
+
+    role: Mapped[list["Role"]] = relationship(
+        "Role",
+        back_populates="permissions_associations",
+        lazy="selectin"
+    )
+
+    permission: Mapped[list["Permission"]] = relationship(
+        "Permission",
+        back_populates="roles_associations",
+        lazy="selectin"
+    )

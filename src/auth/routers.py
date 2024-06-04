@@ -67,9 +67,9 @@ async def register(
 
 @auth_router.get("/tokens/")
 async def tokens(
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
-    return await auth_services.JWTServices.get_all(user_id=user.id)
+    return await auth_services.JWTServices.get_all(current_user_id=current_user.id)
 
 
 @auth_router.get("/me/", response_model=auth_schemas.UserResponse)
@@ -83,9 +83,9 @@ async def me(
 async def logout(
         request: Request,
         response: Response,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
-    await auth_services.JWTServices.delete(token=user.token)
+    await auth_services.JWTServices.delete(token=current_user.token)
     response.delete_cookie('access_token')
     return {"message": "Logged out successfully"}
 
@@ -93,10 +93,10 @@ async def logout(
 @auth_router.post("/out_all/")
 async def logout_all(
         response: Response,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     response.delete_cookie('access_token')
-    await auth_services.JWTServices.delete_all(user_id=user.id)
+    await auth_services.JWTServices.delete_all(current_user_id=current_user.id)
     return {"message": "ALL Logged out successfully"}
 
 
@@ -109,7 +109,7 @@ user_router = APIRouter(tags=["User"], prefix="/ref/user")
 )
 async def user_get(
         user_id: int,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     return await auth_services.UserService.get(user_id=user_id)
 
@@ -120,20 +120,23 @@ async def user_get(
 )
 async def user_add(
         user_data: auth_schemas.RegisterRequest,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     return await auth_services.UserService.add(
         user_data=user_data,
-        current_user_id=user.id
+        current_user_id=current_user.id
     )
+
 
 @user_router.get(
     "/",
     response_model=list[auth_schemas.UserResponse]
 )
 async def user_get_all(
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+    # await auth_services.UserService.check_permission(permission_title="view", user_id=current_user.id)
+
     return await auth_services.UserService.get_all()
 
 
@@ -144,7 +147,7 @@ async def user_get_all(
 async def user_update(
         user_id: int,
         user_data: auth_schemas.UserRequest,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
 ):
     return await auth_services.UserService.update(
         user_id=user_id,
@@ -157,7 +160,7 @@ async def user_update(
 )
 async def user_delete(
         user_id: int,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user),
 ):
     await auth_services.UserService.delete(
         user_id=user_id,
@@ -171,8 +174,9 @@ async def user_delete(
 )
 async def user_get_all_roles(
         user_id: int,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
+
     roles = await auth_services.UserService.get_all_roles(
         user_id=user_id,
     )
@@ -186,10 +190,10 @@ async def user_get_all_roles(
 async def user_add_role(
         user_id: int,
         role_id: int,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     roles = await auth_services.UserService.add_role(
-        current_user_id=user.id,
+        current_user_id=current_user.id,
         user_id=user_id,
         role_id=role_id,
     )
@@ -203,7 +207,7 @@ async def user_add_role(
 async def user_delete_role(
         user_id: int,
         role_id: int,
-        user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
     return await auth_services.UserService.delete_role(
         user_id=user_id,

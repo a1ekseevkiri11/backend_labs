@@ -8,7 +8,9 @@ from fastapi import (
 from sqlalchemy import (
     asc,
     select,
-    delete
+    delete,
+    exists,
+    and_
 )
 from typing import Optional
 from datetime import datetime
@@ -60,12 +62,12 @@ class JWTServices:
     @classmethod
     async def get_all(
             cls,
-            user_id: int,
+            current_user_id: int,
     ) -> list[dict]:
         async with async_session_maker() as session:
             db_tokens = await auth_dao.TokenDAO.find_all(
                 session=session,
-                user_id=user_id
+                user_id=current_user_id
             )
             return [{"id": token.id, "exp": token.exp} for token in db_tokens]
 
@@ -90,22 +92,26 @@ class JWTServices:
     @classmethod
     async def delete_all(
         cls,
-        user_id,
+        current_user_id,
     ) -> None:
         async with (async_session_maker() as session):
             await auth_dao.TokenDAO.delete(
                 session=session,
-                user_id=user_id
+                user_id=current_user_id
             )
             await session.commit()
 
     @classmethod
     async def create(
             cls,
-            user_id: int,
+            current_user_id: int,
             expire_timedelta: timedelta | None = None,
             access_expire_minutes: int = settings.auth_jwt.access_token_expire_minutes,
     ) -> auth_schemas.Token:
+        if settings.auth_jwt.count_tokens < 0:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="the number of tokens must be greater than 0")
 
         now = datetime.now(timezone.utc)
 
@@ -115,46 +121,47 @@ class JWTServices:
             exp = now + timedelta(minutes=access_expire_minutes)
 
         async with (async_session_maker() as session):
+            db_token = await auth_dao.TokenDAO.add(
+                session,
+                auth_schemas.TokenCreateDB(
+                    user_id=current_user_id,
+                    exp=exp
+                )
+            )
             count_tokens = await auth_dao.TokenDAO.count(
                 session,
-                user_id=user_id
+                user_id=current_user_id
             )
+
             if count_tokens >= settings.auth_jwt.count_tokens:
                 stmt = (
                     select(auth_models.Token)
-                    .filter(auth_models.Token.user_id == user_id)
+                    .filter(auth_models.Token.user_id == current_user_id)
                     .order_by(asc(auth_models.Token.exp))
-                    .limit(1)
+                    .limit(count_tokens - settings.auth_jwt.count_tokens)
                 )
                 result = await session.execute(stmt)
-                oldest_token = result.scalars().first()
-                if oldest_token:
+                oldest_tokens = result.scalars().all()
+                for oldest_token in oldest_tokens:
                     await auth_dao.TokenDAO.delete(
                         session=session,
                         id=oldest_token.id
                     )
 
-            db_token = await auth_dao.TokenDAO.add(
-                session,
-                auth_schemas.TokenCreateDB(
-                    user_id=user_id,
-                    exp=exp
-                )
-            )
             await session.commit()
 
-        payload = {
-            "id": db_token.id,
-            "sub": str(user_id),
-            "exp": exp,
-            "iat": now,
-        }
+            payload = {
+                "id": db_token.id,
+                "sub": str(current_user_id),
+                "exp": exp,
+                "iat": now,
+            }
 
-        token = auth_schemas.Token(
-            access_token=cls.encode(payload=payload)
-        )
+            token = auth_schemas.Token(
+                access_token=cls.encode(payload=payload)
+            )
 
-        return token
+            return token
 
     @classmethod
     async def is_valid(
@@ -311,24 +318,54 @@ class UserService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
                 )
-        return db_user.roles
+            return db_user.roles
 
     @staticmethod
     async def check_role(
             user_id: int,
-            role_id: int
-    ) -> bool:
+            role_title: str
+    ) -> None:
         async with async_session_maker() as session:
             stm = (
-                select(role_policy_models.Role)
-                .join(role_policy_models.UsersAndRoles)
-                .join(auth_models.User)
-                .filter(auth_models.User.id == user_id)
-                .filter(role_policy_models.Role.id == role_id)
-                .exists()
+                select(exists().where(
+                    and_(
+                        auth_models.User.id == user_id,
+                        role_policy_models.UsersAndRoles.user_id == auth_models.User.id,
+                        role_policy_models.Role.title == role_title
+                    )
+                ))
             )
             role_exists = await session.execute(stm)
-            return role_exists.scalar()
+            if not role_exists.scalar():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"User haven't role {role_title}",
+                )
+
+    @staticmethod
+    async def check_permission(
+            user_id: int,
+            permission_title: str
+    ) -> None:
+        async with async_session_maker() as session:
+            stm = (
+                select(exists().where(
+                    and_(
+                        auth_models.User.id == user_id,
+                        role_policy_models.UsersAndRoles.user_id == auth_models.User.id,
+                        role_policy_models.RolesAndPermissions.roles_id == role_policy_models.UsersAndRoles.role_id,
+                        role_policy_models.RolesAndPermissions.permissions_id == role_policy_models.Permission.id,
+                        role_policy_models.Permission.title == permission_title
+                    )
+                ))
+            )
+            permission_exists = await session.execute(stm)
+            if not permission_exists.scalar():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"User haven't permission {permission_title}",
+                )
+
 
     @classmethod
     async def add_role(
@@ -421,8 +458,9 @@ class AuthService:
 
         return None
 
-    @staticmethod
+    @classmethod
     async def get_current_user(
+            cls,
             token: str = Depends(oauth2_scheme),
     ) -> Optional[auth_schemas.User]:
         try:
@@ -435,9 +473,10 @@ class AuthService:
             if user_id is None:
                 raise exceptions.InvalidTokenException
 
-        except Exception as ex:
+        except Exception:
             raise exceptions.InvalidTokenException
 
-        user = await UserService.get(user_id)
-        user.token = token
-        return user
+        current_user = await UserService.get(user_id)
+
+        current_user.token = token
+        return current_user

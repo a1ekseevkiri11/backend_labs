@@ -23,7 +23,7 @@ from src.role_policy import models as role_policy_models
 class RoleService:
     @staticmethod
     async def add(
-            user_id: int,
+            current_user_id: int,
             role_data: role_policy_schemas.RoleRequest
     ) -> role_policy_schemas.Role:
         async with async_session_maker() as session:
@@ -41,7 +41,7 @@ class RoleService:
 
             create_db_role = role_policy_schemas.RoleCreateDB(
                 **role_data.model_dump(),
-                created_by=user_id,
+                created_by=current_user_id,
                 cipher=cipher
             )
 
@@ -123,14 +123,149 @@ class RoleService:
             )
             await session.commit()
 
-    # TODO: дописать мягкое удаление и востановление
+    @staticmethod
+    async def get_all_permission(
+            role_id: int
+    ) -> list[role_policy_schemas.Permission]:
+        async with async_session_maker() as session:
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none(
+                session,
+                role_policy_models.Role.id == role_id
+            )
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+            return db_role.permissions
 
+    @classmethod
+    async def add_permission(
+            cls,
+            current_user_id: int,
+            role_id: int,
+            permission_id: int,
+    ) -> list[role_policy_schemas.Permission]:
+        async with async_session_maker() as session:
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none(
+                session,
+                role_policy_models.Role.id == role_id
+            )
+
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+
+            db_permission = await role_policy_dao.PermissionDAO.find_one_or_none(
+                session,
+                role_policy_models.Permission.id == permission_id
+            )
+
+            if db_permission is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found"
+                )
+
+            for permission in db_role.permissions:
+                if permission.id == permission_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT, detail="Role with this permission already exist",
+                    )
+
+            db_role.permissions_associations.append(
+                role_policy_models.RolesAndPermissions(
+                    permission=db_permission,
+                    created_by=current_user_id
+                )
+            )
+
+            await session.commit()
+            return await cls.get_all_permission(role_id=role_id)
+
+    @classmethod
+    async def delete_permission(
+            cls,
+            role_id: int,
+            permission_id: int,
+    ) -> list[role_policy_schemas.Permission]:
+        async with async_session_maker() as session:
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none(
+                session,
+                role_policy_models.Role.id == role_id
+            )
+
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+
+            db_permission = await role_policy_dao.PermissionDAO.find_one_or_none(
+                session,
+                role_policy_models.Permission.id == permission_id
+            )
+
+            if db_permission is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found"
+                )
+
+            for permission in db_role.permissions:
+                if permission.id == permission_id:
+                    db_role.permissions.remove(db_permission)
+                    await session.commit()
+                    return await cls.get_all_permission(role_id=role_id)
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Role with this permission already exist",
+            )
+
+    @classmethod
+    async def soft_delete(
+            cls,
+            current_user_id: int,
+            role_id: int,
+    ) -> None:
+        async with async_session_maker() as session:
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none(
+                session,
+                role_policy_models.Role.id == role_id
+            )
+
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+            now = datetime.now(timezone.utc)
+            db_role.deleted_at = now
+            db_role.deleted_by = current_user_id
+            await session.commit()
+
+    @classmethod
+    async def refresh(
+            cls,
+            role_id: int,
+    ) -> role_policy_schemas.Role:
+        async with async_session_maker() as session:
+            db_role = await role_policy_dao.RoleDAO.find_one_or_none_with_deleted(
+                session,
+                role_policy_models.Role.id == role_id
+            )
+
+            if db_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                )
+
+            db_role.deleted_at = None
+            db_role.deleted_by = None
+            await session.commit()
+            return await cls.get(role_id=role_id)
 
 
 class PermissionService:
     @staticmethod
     async def add(
-            user_id: int,
+            current_user_id: int,
             permission_data: role_policy_schemas.PermissionRequest
     ) -> role_policy_schemas.Permission:
         async with async_session_maker() as session:
@@ -148,7 +283,7 @@ class PermissionService:
 
             create_db_permission = role_policy_schemas.PermissionCreateDB(
                 **permission_data.model_dump(),
-                created_by=user_id,
+                created_by=current_user_id,
                 cipher=cipher
             )
 

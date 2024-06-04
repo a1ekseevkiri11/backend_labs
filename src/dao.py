@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
+from datetime import datetime, timezone
 
 from src.database import async_session_maker, Base
 
@@ -16,6 +17,13 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 class BaseDAO(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     model = None
+
+    @classmethod
+    async def find_one_or_none_with_deleted(cls, session: AsyncSession, *filter, **filter_by) -> Optional[ModelType]:
+        stmt = select(cls.model).filter(*filter).filter_by(**filter_by)
+        stmt = stmt.execution_options(include_deleted=True)
+        result = await session.execute(stmt)
+        return result.scalars().one_or_none()
 
     @classmethod
     async def find_one_or_none(cls, session: AsyncSession, *filter, **filter_by) -> Optional[ModelType]:
@@ -87,7 +95,6 @@ class BaseDAO(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
         stmt = (
             update(cls.model).
-            # where(cls.model.id == id).
             where(*where).
             values(**update_data).
             returning(cls.model)
@@ -108,9 +115,7 @@ class BaseDAO(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 msg = "Database Exc"
             elif isinstance(e, Exception):
                 msg = "Unknown Exc"
-            msg += ": Cannot bulk insert data into table"
 
-            # logger.error(msg, extra={"table": cls.model.__tablename__}, exc_info=True)
             return None
 
     @classmethod
@@ -125,7 +130,6 @@ class BaseDAO(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 msg = "Unknown Exc"
             msg += ": Cannot bulk update data into table"
             print(msg)
-            # logger.error(msg, extra={"table": cls.model.__tablename__}, exc_info=True)
             return None
 
     @classmethod
