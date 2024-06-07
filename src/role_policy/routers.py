@@ -11,6 +11,7 @@ from src.auth import schemas as auth_schemas
 from src.auth import services as auth_services
 from src.role_policy import schemas as role_policy_schemas
 from src.role_policy import services as role_policy_services
+from src.log import schemas as log_schemas
 from src import exceptions
 from src.settings import settings
 
@@ -80,6 +81,7 @@ async def permission_update(
         permission_title="update-permissions"
     )
     return await role_policy_services.PermissionService.update(
+        current_user_id=current_user.id,
         permission_id=permission_id,
         permission_data=permission_data
     )
@@ -95,6 +97,7 @@ async def permission_delete(
         permission_title="delete-permissions"
     )
     await role_policy_services.PermissionService.delete(
+        current_user_id=current_user.id,
         permission_id=permission_id,
     )
     return {"message": "Permission deleted successfully"}
@@ -126,7 +129,32 @@ async def permission_restore(
         permission_title="restore-permissions"
     )
     return await role_policy_services.PermissionService.restore(
+        current_user_id=current_user.id,
         permission_id=permission_id,
+    )
+
+
+@permission_router.put("/{permission_id}/revert/")
+async def permission_revert(
+        permission_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    await role_policy_services.PermissionService.revert(
+        permission_id=permission_id,
+    )
+    return {"message": "Permission revert successfully!"}
+
+
+@permission_router.get(
+    "/{permission_id}/story",
+    response_model=list[log_schemas.Log]
+)
+async def role_get_all_logs(
+        permission_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await role_policy_services.PermissionService.get_all_logs(
+        permission_id=permission_id
     )
 
 
@@ -159,7 +187,6 @@ async def role_get(
     return await role_policy_services.RoleService.get(
         role_id=role_id,
     )
-
 
 
 @role_router.post(
@@ -195,6 +222,7 @@ async def role_update(
         permission_title="update-roles"
     )
     return await role_policy_services.RoleService.update(
+        current_user_id=current_user.id,
         role_id=role_id,
         role_data=role_data,
     )
@@ -210,6 +238,7 @@ async def role_delete(
         permission_title="delete-roles"
     )
     await role_policy_services.RoleService.delete(
+        current_user_id=current_user.id,
         role_id=role_id,
     )
     return {"message": "Role deleted successfully"}
@@ -244,6 +273,7 @@ async def role_restore(
         permission_title="restore-roles"
     )
     return await role_policy_services.RoleService.restore(
+        current_user_id=current_user.id,
         role_id=role_id,
     )
 
@@ -301,4 +331,17 @@ async def role_delete_permission(
     return await role_policy_services.RoleService.delete_permission(
         role_id=role_id,
         permission_id=permission_id,
+    )
+
+
+@role_router.get(
+    "/{role_id}/story",
+    response_model=list[log_schemas.Log]
+)
+async def role_get_all_logs(
+        role_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await role_policy_services.RoleService.get_all_logs(
+        role_id=role_id,
     )

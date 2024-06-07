@@ -67,7 +67,7 @@ class BaseDAO(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             return result.scalars().first()
         except (SQLAlchemyError, Exception) as e:
             if isinstance(e, SQLAlchemyError):
-                msg = "Database Exc: Cannot insert data into table"
+                msg = f"Database Exc: Cannot insert data into table {e}"
             elif isinstance(e, Exception):
                 msg = "Unknown Exc: Cannot insert data into table"
 

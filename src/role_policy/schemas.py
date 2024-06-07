@@ -47,8 +47,10 @@ class PermissionCreateDB(BaseModel):
 
 
 class PermissionUpdateDB(BaseModel):
-    title: str
-    description: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
 
 
 class RoleRequest(BaseModel):
@@ -80,5 +82,7 @@ class RoleCreateDB(BaseModel):
 
 
 class RoleUpdateDB(BaseModel):
-    title: str
-    description: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None

@@ -22,6 +22,7 @@ if config.config_file_name is not None:
 
 from src.auth import models
 from src.role_policy import models
+from src.log import models
 from src.models import Base
 from src.settings import settings
 

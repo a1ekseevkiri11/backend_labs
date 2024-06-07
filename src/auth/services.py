@@ -30,6 +30,8 @@ from src import exceptions
 from src.role_policy import dao as role_policy_dao
 from src.role_policy import models as role_policy_models
 from src.role_policy import schemas as role_policy_schemas
+from src.log import services as log_services
+from src.log import schemas as log_schemas
 
 
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="/api/auth/login/")
@@ -222,9 +224,24 @@ class UserService:
                     )
                 )
                 db_user.created_by = db_user.id
-            await session.commit()
 
-        return db_user
+            await log_services.LogServices.add(
+                session=session,
+                log_data=log_schemas.LogCreateDB(
+                    entity_type=auth_models.User.__tablename__,
+                    entity_id=db_user.id,
+                    before_change=None,
+                    after_change=auth_schemas.UserCreateDB(
+                        username=db_user.username,
+                        email=db_user.email,
+                        birthday=db_user.birthday,
+                        hashed_password=db_user.hashed_password,
+                        created_by=db_user.created_by
+                    ),
+                    created_by=current_user_id,
+                ))
+            await session.commit()
+            return db_user
 
     @staticmethod
     async def get(
@@ -254,6 +271,7 @@ class UserService:
     @classmethod
     async def update(
             cls,
+            current_user_id: int,
             user_id: int,
             user_data: auth_schemas.UserRequest,
     ) -> auth_schemas.User:
@@ -283,6 +301,20 @@ class UserService:
                 **user_data.model_dump(),
             )
 
+            await log_services.LogServices.add(
+                session=session,
+                log_data=log_schemas.LogCreateDB(
+                    entity_type=auth_models.User.__tablename__,
+                    entity_id=user_exist.id,
+                    before_change=auth_schemas.UserUpdateDB(
+                        username=user_exist.username,
+                        email=user_exist.email,
+                        birthday=user_exist.birthday,
+                    ),
+                    after_change=update_db_user,
+                    created_by=current_user_id,
+                ))
+
             db_permission = await auth_dao.UserDAO.update(
                 session,
                 auth_models.User.id == user_id,
@@ -295,10 +327,27 @@ class UserService:
     @classmethod
     async def delete(
             cls,
+            current_user_id: int,
             user_id: int
     ) -> None:
-        await cls.get(user_id=user_id)
+
         async with async_session_maker() as session:
+            db_user = await cls.get(user_id=user_id)
+            await log_services.LogServices.add(
+                session=session,
+                log_data=log_schemas.LogCreateDB(
+                    entity_type=auth_models.User.__tablename__,
+                    entity_id=db_user.id,
+                    before_change=auth_schemas.UserCreateDB(
+                        username=db_user.username,
+                        email=db_user.email,
+                        birthday=db_user.birthday,
+                        hashed_password=db_user.hashed_password,
+                        created_by=db_user.created_by,
+                    ),
+                    after_change=None,
+                    created_by=current_user_id,
+                ))
             await auth_dao.UserDAO.delete(
                 session=session,
                 id=user_id,
@@ -324,26 +373,55 @@ class UserService:
             now = datetime.now(timezone.utc)
             db_user.deleted_at = now
             db_user.deleted_by = current_user_id
+            await log_services.LogServices.add(
+                session=session,
+                log_data=log_schemas.LogCreateDB(
+                    entity_type=auth_models.User.__tablename__,
+                    entity_id=db_user.id,
+                    before_change=auth_schemas.UserUpdateDB(
+                        deleted_by=None
+                    ),
+                    after_change=auth_schemas.UserUpdateDB(
+                        deleted_by=db_user.deleted_by
+                    ),
+                    created_by=current_user_id,
+                ))
             await session.commit()
 
     @classmethod
     async def restore(
             cls,
+            current_user_id: int,
             user_id: int,
     ) -> auth_schemas.User:
         async with async_session_maker() as session:
-            db_role = await auth_dao.UserDAO.find_one_or_none_with_deleted(
+            db_user = await auth_dao.UserDAO.find_one_or_none_with_deleted(
                 session,
-                auth_schemas.User.id == role_id
+                auth_schemas.User.id == user_id
             )
 
-            if db_role is None:
+            if db_user is None:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
+                    status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
                 )
 
-            db_role.deleted_at = None
-            db_role.deleted_by = None
+            db_user.deleted_at = None
+            db_user.deleted_by = None
+
+            await log_services.LogServices.add(
+                session=session,
+                log_data=log_schemas.LogCreateDB(
+                    entity_type=auth_models.User.__tablename__,
+                    entity_id=db_user.id,
+                    before_change=auth_schemas.UserUpdateDB(
+                        deleted_by=db_user.deleted_by
+                    ),
+                    after_change=auth_schemas.UserUpdateDB(
+                        deleted_by=None
+                    ),
+                    created_by=current_user_id,
+                ))
+
             await session.commit()
             return await cls.get(user_id=user_id)
 
@@ -492,6 +570,24 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User does not have this role",
             )
+
+    @staticmethod
+    async def revert(
+            user_id: int,
+    ) -> None:
+        await log_services.LogServices.revert(
+            entity_type=auth_models.User.__tablename__,
+            entity_id=user_id
+        )
+
+    @staticmethod
+    async def get_all_logs(
+            user_id: int
+    ) -> list[log_schemas.Log]:
+        return await log_services.LogServices.get_all(
+            entity_type=auth_models.User.__tablename__,
+            entity_id=user_id,
+        )
 
 
 class AuthService:

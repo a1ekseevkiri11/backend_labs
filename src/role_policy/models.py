@@ -3,16 +3,16 @@ from sqlalchemy.orm import (
     Mapped,
     mapped_column,
     declared_attr,
-    relationship
+    relationship,
+    Session
 )
 import uuid
 from datetime import date, datetime
 from sqlalchemy import (
     Text,
-    Date,
-    DateTime,
     ForeignKey,
     func,
+    event
 )
 from src.models import (
     Base,
@@ -57,7 +57,6 @@ class Role(BaseEntity):
         back_populates="role",
         lazy="selectin"
     )
-
 
 
 class UsersAndRoles(BaseServiceFields):

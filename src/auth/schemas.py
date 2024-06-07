@@ -112,9 +112,11 @@ class UserCreateDB(BaseModel):
 
 
 class UserUpdateDB(BaseModel):
-    username: str
-    email: EmailStr
-    birthday: date
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    birthday: Optional[date] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
 
 
 class Token(BaseModel):

@@ -16,6 +16,7 @@ from src.auth import schemas as auth_schemas
 from src.role_policy import schemas as role_policy_schemas
 from src import exceptions
 from src.settings import settings
+from src.log import schemas as log_schemas
 
 
 auth_router = APIRouter(tags=["Auth"], prefix="/auth")
@@ -168,6 +169,7 @@ async def user_update(
         request_user_id=user_id
     )
     return await auth_services.UserService.update(
+        current_user_id=current_user.id,
         user_id=user_id,
         user_data=user_data,
     )
@@ -185,6 +187,7 @@ async def user_delete(
         user_id=current_user.id
     )
     await auth_services.UserService.delete(
+        current_user_id=current_user.id,
         user_id=user_id,
     )
     return {"message": "User deleted successfully"}
@@ -221,6 +224,7 @@ async def user_restore(
         user_id=current_user.id
     )
     return await auth_services.UserService.restore(
+        current_user_id=current_user.id,
         user_id=user_id,
     )
 
@@ -280,4 +284,28 @@ async def user_delete_role(
     return await auth_services.UserService.delete_role(
         user_id=user_id,
         role_id=role_id,
+    )
+
+
+@user_router.put("/{user_id}/revert/")
+async def permission_revert(
+        user_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    await auth_services.UserService.revert(
+        user_id=user_id,
+    )
+    return {"message": "User revert successfully!"}
+
+
+@user_router.get(
+    "/{user_id}/story",
+    response_model=list[log_schemas.Log]
+)
+async def role_get_all_logs(
+        user_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    return await auth_services.UserService.get_all_logs(
+        user_id=user_id
     )
