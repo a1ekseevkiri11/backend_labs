@@ -211,7 +211,7 @@ async def user_soft_delete(
     return {"message": "User soft deleted successfully"}
 
 
-@user_router.delete(
+@user_router.put(
     "/{user_id}/restore/",
     response_model=auth_schemas.UserResponse
 )
@@ -288,7 +288,7 @@ async def user_delete_role(
 
 
 @user_router.put("/{user_id}/revert/")
-async def permission_revert(
+async def user_revert(
         user_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
@@ -302,7 +302,7 @@ async def permission_revert(
     "/{user_id}/story",
     response_model=list[log_schemas.Log]
 )
-async def role_get_all_logs(
+async def user_get_all_logs(
         user_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):

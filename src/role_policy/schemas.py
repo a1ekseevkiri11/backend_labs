@@ -43,14 +43,15 @@ class PermissionCreateDB(BaseModel):
     title: str
     description: str
     cipher: str
-    created_by: int
+    created_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
 
 
 class PermissionUpdateDB(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    deleted_at: Optional[datetime] = None
-    deleted_by: Optional[int] = None
 
 
 class RoleRequest(BaseModel):
@@ -78,11 +79,18 @@ class RoleCreateDB(BaseModel):
     title: str
     description: str
     cipher: str
-    created_by: int
+    created_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
+
+
+class SoftDeleteDB(BaseModel):
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
 
 
 class RoleUpdateDB(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    deleted_at: Optional[datetime] = None
-    deleted_by: Optional[int] = None
+

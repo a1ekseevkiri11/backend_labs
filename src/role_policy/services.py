@@ -117,7 +117,7 @@ class RoleService:
                 log_data=log_schemas.LogCreateDB(
                     entity_type=role_policy_models.Role.__tablename__,
                     entity_id=role_exist.id,
-                    before_change=role_policy_schemas.RoleCreateDB(
+                    before_change=role_policy_schemas.RoleUpdateDB(
                         title=role_exist.title,
                         description=role_exist.description
                     ),
@@ -153,7 +153,11 @@ class RoleService:
                         title=db_role.title,
                         description=db_role.description,
                         cipher=db_role.cipher,
-                        created_by=db_role.created_by
+                        created_at=db_role.created_at,
+                        created_by=db_role.created_by,
+                        deleted_at=db_role.deleted_at,
+                        deleted_by=db_role.deleted_by,
+
                     ),
                     after_change=None,
                     created_by=current_user_id,
@@ -284,11 +288,13 @@ class RoleService:
                 log_data=log_schemas.LogCreateDB(
                     entity_type=role_policy_models.Role.__tablename__,
                     entity_id=db_role.id,
-                    before_change=role_policy_schemas.RoleUpdateDB(
-                        deleted_by=None
+                    before_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=None,
+                        deleted_at=None
                     ),
-                    after_change=role_policy_schemas.RoleUpdateDB(
-                        deleted_by=db_role.deleted_by
+                    after_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=db_role.deleted_by,
+                        deleted_at=db_role.deleted_at
                     ),
                     created_by=current_user_id,
                 ))
@@ -316,11 +322,13 @@ class RoleService:
                 log_data=log_schemas.LogCreateDB(
                     entity_type=role_policy_models.Role.__tablename__,
                     entity_id=db_role.id,
-                    before_change=role_policy_schemas.RoleUpdateDB(
-                        deleted_by=db_role.deleted_by
+                    before_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=db_role.deleted_by,
+                        deleted_at=db_role.deleted_at
                     ),
-                    after_change=role_policy_schemas.RoleUpdateDB(
-                        deleted_by=None
+                    after_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=None,
+                        deleted_at=None
                     ),
                     created_by=current_user_id,
                 ))
@@ -448,7 +456,8 @@ class PermissionService:
                     ),
                     after_change=update_db_permission,
                     created_by=current_user_id,
-                ))
+                )
+            )
 
             db_permission = await role_policy_dao.PermissionDAO.update(
                 session,
@@ -477,7 +486,10 @@ class PermissionService:
                         title=db_permission.title,
                         description=db_permission.description,
                         cipher=db_permission.cipher,
-                        created_by=db_permission.created_by
+                        created_at=db_permission.created_at,
+                        created_by=db_permission.created_by,
+                        deleted_at=db_permission.deleted_at,
+                        deleted_by=db_permission.deleted_by,
                     ),
                     after_change=None,
                     created_by=current_user_id,
@@ -512,11 +524,13 @@ class PermissionService:
                 log_data=log_schemas.LogCreateDB(
                     entity_type=role_policy_models.Permission.__tablename__,
                     entity_id=db_permission.id,
-                    before_change=role_policy_schemas.PermissionUpdateDB(
-                        deleted_by=None
+                    before_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=None,
+                        deleted_at=None
                     ),
-                    after_change=role_policy_schemas.PermissionUpdateDB(
-                        deleted_by=db_permission.deleted_by
+                    after_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=db_permission.deleted_by,
+                        deleted_at=db_permission.deleted_at
                     ),
                     created_by=current_user_id,
                 ))
@@ -544,11 +558,13 @@ class PermissionService:
                 log_data=log_schemas.LogCreateDB(
                     entity_type=role_policy_models.Permission.__tablename__,
                     entity_id=db_permission.id,
-                    before_change=role_policy_schemas.PermissionUpdateDB(
-                        deleted_by=db_permission.deleted_by
+                    before_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=db_permission.deleted_by,
+                        deleted_at=db_permission.deleted_at
                     ),
-                    after_change=role_policy_schemas.PermissionUpdateDB(
-                        deleted_by=None
+                    after_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=None,
+                        deleted_at=None
                     ),
                     created_by=current_user_id,
                 ))

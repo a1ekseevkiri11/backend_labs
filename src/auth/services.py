@@ -343,7 +343,10 @@ class UserService:
                         email=db_user.email,
                         birthday=db_user.birthday,
                         hashed_password=db_user.hashed_password,
+                        created_at=db_user.created_at,
                         created_by=db_user.created_by,
+                        deleted_at=db_user.deleted_at,
+                        deleted_by=db_user.deleted_by
                     ),
                     after_change=None,
                     created_by=current_user_id,
@@ -363,7 +366,7 @@ class UserService:
         async with async_session_maker() as session:
             db_user = await auth_dao.UserDAO.find_one_or_none(
                 session,
-                auth_schemas.User.id == user_id
+                auth_models.User.id == user_id
             )
 
             if db_user is None:
@@ -378,11 +381,13 @@ class UserService:
                 log_data=log_schemas.LogCreateDB(
                     entity_type=auth_models.User.__tablename__,
                     entity_id=db_user.id,
-                    before_change=auth_schemas.UserUpdateDB(
-                        deleted_by=None
+                    before_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=None,
+                        deleted_at=None
                     ),
-                    after_change=auth_schemas.UserUpdateDB(
-                        deleted_by=db_user.deleted_by
+                    after_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=db_user.deleted_by,
+                        deleted_at=db_user.deleted_at
                     ),
                     created_by=current_user_id,
                 ))
@@ -397,31 +402,32 @@ class UserService:
         async with async_session_maker() as session:
             db_user = await auth_dao.UserDAO.find_one_or_none_with_deleted(
                 session,
-                auth_schemas.User.id == user_id
+                auth_models.User.id == user_id
             )
 
-            if db_user is None:
+            if not db_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
                 )
-
-            db_user.deleted_at = None
-            db_user.deleted_by = None
 
             await log_services.LogServices.add(
                 session=session,
                 log_data=log_schemas.LogCreateDB(
                     entity_type=auth_models.User.__tablename__,
                     entity_id=db_user.id,
-                    before_change=auth_schemas.UserUpdateDB(
-                        deleted_by=db_user.deleted_by
+                    before_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=db_user.deleted_by,
+                        deleted_at=db_user.deleted_at
                     ),
-                    after_change=auth_schemas.UserUpdateDB(
-                        deleted_by=None
+                    after_change=role_policy_schemas.SoftDeleteDB(
+                        deleted_by=None,
+                        deleted_at=None
                     ),
                     created_by=current_user_id,
                 ))
 
+            db_user.deleted_at = None
+            db_user.deleted_by = None
             await session.commit()
             return await cls.get(user_id=user_id)
 

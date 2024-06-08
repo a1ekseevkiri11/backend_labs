@@ -20,7 +20,7 @@ def convert_dates(obj: Any) -> Any:
         return {k: convert_dates(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_dates(item) for item in obj]
-    elif isinstance(obj, (date, datetime)):
+    elif isinstance(obj, (datetime, date)):
         return obj.isoformat()
     return obj
 
@@ -32,7 +32,7 @@ def convert_isoformat_to_dates(obj: Any) -> Any:
         return [convert_isoformat_to_dates(item) for item in obj]
     elif isinstance(obj, str):
         try:
-            return datetime.fromisoformat(obj).date()
+            return datetime.fromisoformat(obj)
         except ValueError:
             return obj
     return obj

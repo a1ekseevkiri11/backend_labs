@@ -149,7 +149,7 @@ async def permission_revert(
     "/{permission_id}/story",
     response_model=list[log_schemas.Log]
 )
-async def role_get_all_logs(
+async def permission_get_all_logs(
         permission_id: int,
         current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
 ):
@@ -276,6 +276,17 @@ async def role_restore(
         current_user_id=current_user.id,
         role_id=role_id,
     )
+
+
+@role_router.put("/{role_id}/revert/")
+async def role_revert(
+        role_id: int,
+        current_user: auth_schemas.User = Depends(auth_services.AuthService.get_current_user)
+):
+    await role_policy_services.RoleService.revert(
+        role_id=role_id,
+    )
+    return {"message": "Role revert successfully!"}
 
 
 @role_router.get(

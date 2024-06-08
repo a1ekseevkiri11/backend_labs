@@ -108,7 +108,10 @@ class UserCreateDB(BaseModel):
     email: EmailStr
     birthday: date
     hashed_password: str
+    created_at: Optional[datetime] = None
     created_by: Optional[int] = None
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[int] = None
 
 
 class UserUpdateDB(BaseModel):
