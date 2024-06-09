@@ -36,7 +36,7 @@ async def login(
         )
 
     except ValueError as ex:
-        raise HTTPException(status_code=status.HTTP_423_UNPROCESSABLE_ENTITY_FORBIDDEN, detail=f"{ex}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{ex}")
 
     user = await auth_services.AuthService.login(user_data=user_data)
 
@@ -67,7 +67,7 @@ async def otp_generate(
         )
 
     except ValueError as ex:
-        raise HTTPException(status_code=status.HTTP_423_UNPROCESSABLE_ENTITY_FORBIDDEN, detail=f"{ex}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{ex}")
 
     user = await auth_services.AuthService.login(user_data=user_data)
 
@@ -90,10 +90,14 @@ async def otp_check(
         user_id: int,
         code: int
 ):
-    otp_data = auth_schemas.OTPRequest(
-        user_id=user_id,
-        code=code
-    )
+    try:
+        otp_data = auth_schemas.OTPRequest(
+            user_id=user_id,
+            code=code
+        )
+    except ValueError as ex:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{ex}")
+
     if not await auth_services.OTPServices.is_valid(
         otp_data=otp_data,
     ):

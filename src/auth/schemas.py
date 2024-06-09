@@ -7,6 +7,7 @@ from pydantic import (
     SecretStr,
     model_validator,
     field_validator,
+    conint
 )
 from datetime import date, datetime
 from typing_extensions import Self
@@ -47,7 +48,8 @@ class LoginRequest(BaseModel):
 
         if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).+$', self.password):
             raise ValueError(
-                'Password must contain at least one lowercase letter, one uppercase letter, one digit, and one special character.'
+                'Password must contain at least one lowercase letter, one uppercase letter, one digit, \
+                and one special character.'
             )
 
         return self
@@ -139,7 +141,7 @@ class TokenUpdateDB(TokenCreateDB):
 
 
 class OTPRequest(BaseModel):
-    code: int
+    code: int = Field(ge=100_000, le=999_999, description="Code should be a 6-digit number")
     user_id: int
 
 
