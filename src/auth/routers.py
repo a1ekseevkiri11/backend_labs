@@ -44,12 +44,72 @@ async def login(
         raise exceptions.InvalidCredentialsException
 
     token = await auth_services.JWTServices.create(user.id)
+
     response.set_cookie(
         'access_token',
         token.access_token,
         max_age=settings.auth_jwt.access_token_expire_minutes,
         httponly=True
     )
+    return token
+
+
+@auth_router.post(
+    "/otp/",
+    response_model=auth_schemas.LoginResponse)
+async def otp_generate(
+    user_data: OAuth2PasswordRequestForm = Depends(),
+):
+    try:
+        user_data = auth_schemas.LoginRequest(
+            username=user_data.username,
+            password=user_data.password
+        )
+
+    except ValueError as ex:
+        raise HTTPException(status_code=status.HTTP_423_UNPROCESSABLE_ENTITY_FORBIDDEN, detail=f"{ex}")
+
+    user = await auth_services.AuthService.login(user_data=user_data)
+
+    if not user:
+        raise exceptions.InvalidCredentialsException
+
+    await auth_services.OTPServices.generate(user_data=user)
+    return {
+        "user": user,
+        "message": f"OTP send in your email: {user.email}"
+    }
+
+
+@auth_router.post(
+    "/otp/{user_id}/",
+    response_model=auth_schemas.Token
+)
+async def otp_check(
+        response: Response,
+        user_id: int,
+        code: int
+):
+    otp_data = auth_schemas.OTPRequest(
+        user_id=user_id,
+        code=code
+    )
+    if not await auth_services.OTPServices.is_valid(
+        otp_data=otp_data,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Code incorrect",
+        )
+
+    token = await auth_services.JWTServices.create(otp_data.user_id)
+    response.set_cookie(
+        'access_token',
+        token.access_token,
+        max_age=settings.auth_jwt.access_token_expire_minutes,
+        httponly=True
+    )
+
     return token
 
 

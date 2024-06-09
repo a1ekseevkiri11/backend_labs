@@ -1,5 +1,6 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta, datetime
 import jwt
+import pytz
 from fastapi import (
     HTTPException,
     status,
@@ -12,8 +13,8 @@ from sqlalchemy import (
     exists,
     and_
 )
+from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
-from datetime import datetime
 
 
 from src.auth import schemas as auth_schemas
@@ -24,7 +25,8 @@ from src.settings import settings
 from src.auth.utils import (
     get_hash,
     is_matched_hash,
-    OAuth2PasswordBearerWithCookie
+    OAuth2PasswordBearerWithCookie,
+    generate_numeric_code
 )
 from src import exceptions
 from src.role_policy import dao as role_policy_dao
@@ -32,7 +34,7 @@ from src.role_policy import models as role_policy_models
 from src.role_policy import schemas as role_policy_schemas
 from src.log import services as log_services
 from src.log import schemas as log_schemas
-
+from src.email import services as email_services
 
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="/api/auth/login/")
 
@@ -115,7 +117,7 @@ class JWTServices:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="the number of tokens must be greater than 0")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(pytz.timezone(settings.timezone))
 
         if expire_timedelta:
             exp = now + expire_timedelta
@@ -179,7 +181,7 @@ class JWTServices:
             )
             if db_token is None:
                 return False
-            if db_token.exp > datetime.now():
+            if db_token.exp < datetime.now():
                 await cls.delete(token)
                 return False
             return True
@@ -238,7 +240,7 @@ class UserService:
                         hashed_password=db_user.hashed_password,
                         created_by=db_user.created_by
                     ),
-                    created_by=current_user_id,
+                    created_by=db_user.created_by,
                 ))
             await session.commit()
             return db_user
@@ -373,7 +375,7 @@ class UserService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
                 )
-            now = datetime.now(timezone.utc)
+            now = datetime.now(pytz.timezone(settings.timezone))
             db_user.deleted_at = now
             db_user.deleted_by = current_user_id
             await log_services.LogServices.add(
@@ -628,12 +630,104 @@ class AuthService:
             user_id = payload.get("sub")
 
             if user_id is None:
+
                 raise exceptions.InvalidTokenException
 
-        except Exception:
+        except Exception as e:
+            print("ERROR", e)
             raise exceptions.InvalidTokenException
 
         current_user = await UserService.get(user_id)
 
         current_user.token = token
         return current_user
+
+
+class OTPServices:
+
+    @staticmethod
+    async def generate(
+            user_data: auth_schemas.User
+    ) -> None:
+        async with (async_session_maker() as session):
+            db_otp_exist = await auth_dao.OTPDAO.find_one_or_none(
+                session,
+                auth_models.OTP.user_id == user_data.id
+            )
+
+            count_attempts = 0
+
+            if db_otp_exist:
+                count_attempts = db_otp_exist.count_attempts
+
+                if count_attempts >= settings.otp.count_incorrect_attempts:
+                    time_wait = db_otp_exist.exp - timedelta(minutes=settings.otp.expire_minutes) + \
+                        timedelta(seconds=settings.otp.delay_second)
+
+                    if time_wait > datetime.now():
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"User, please wait {time_wait - datetime.now()}"
+                        )
+
+                await auth_dao.OTPDAO.delete(
+                    session,
+                    auth_models.OTP.user_id == user_data.id
+                )
+
+                await session.commit()
+
+            code = generate_numeric_code()
+
+            email_services.EmailServices.send_code(
+                to_email=user_data.email,
+                code=code,
+            )
+
+            await auth_dao.OTPDAO.add(
+                session,
+                auth_schemas.OTPCreateDB(
+                    code=code,
+                    exp=datetime.now() + timedelta(minutes=settings.otp.expire_minutes),
+                    user_id=user_data.id,
+                    count_attempts=count_attempts + 1,
+                )
+            )
+
+            await session.commit()
+
+    @staticmethod
+    async def is_valid(
+            otp_data: auth_schemas.OTPRequest,
+    ) -> bool:
+        async with async_session_maker() as session:
+            db_otp = await auth_dao.OTPDAO.find_one_or_none(
+                session,
+                auth_models.OTP.user_id == otp_data.user_id,
+            )
+
+            if db_otp is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="OTP not found",
+                )
+
+            if db_otp.exp < datetime.now():
+                await auth_dao.OTPDAO.delete(
+                    session,
+                    auth_models.OTP.user_id == otp_data.user_id
+                )
+                await session.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_410_GONE,
+                    detail=f"OTP expire, {datetime.now() - db_otp.exp}",
+                )
+
+            if db_otp.code == otp_data.code:
+                await auth_dao.OTPDAO.delete(
+                    session,
+                    auth_models.OTP.user_id == otp_data.user_id
+                )
+                return True
+
+            return False

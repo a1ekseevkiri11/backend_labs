@@ -30,7 +30,7 @@ class User(BaseServiceFields):
     email: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     birthday: Mapped[date] = mapped_column(Date, nullable=False)
 
-    tokens: Mapped["Token"] = relationship(back_populates="user")
+    tokens: Mapped[list["Token"]] = relationship(back_populates="user")
 
     roles: Mapped[list["Role"]] = relationship(
         "Role",
@@ -45,10 +45,26 @@ class User(BaseServiceFields):
         lazy="selectin",
     )
 
+    otp: Mapped["OTP"] = relationship(uselist=False, back_populates="user")
+
+
+class OTP(Base):
+    __tablename__ = "otp"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    code: Mapped[int] = mapped_column()
+    exp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    count_attempts: Mapped[int] = mapped_column()
+
+    user = relationship("User", back_populates="otp")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+
 
 class Token(Base):
     __tablename__ = "tokens"
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     exp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
     user = relationship("User", back_populates="tokens")
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

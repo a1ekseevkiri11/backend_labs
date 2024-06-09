@@ -17,6 +17,8 @@ from src.role_policy.schemas import (
     RoleResponse,
 )
 
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -135,3 +137,23 @@ class TokenCreateDB(BaseModel):
 class TokenUpdateDB(TokenCreateDB):
     pass
 
+
+class OTPRequest(BaseModel):
+    code: int
+    user_id: int
+
+
+class OTPCreateDB(BaseModel):
+    code: int
+    exp: datetime
+    user_id: int
+    count_attempts: int = 0
+
+
+class OTPUpdateDB(BaseModel):
+    pass
+
+
+class LoginResponse(BaseModel):
+    message: str
+    user: UserResponse

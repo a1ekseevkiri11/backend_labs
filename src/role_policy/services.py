@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta, datetime
 import json
 from fastapi import (
     HTTPException,
@@ -11,7 +11,7 @@ from sqlalchemy import (
     delete
 )
 from typing import Optional
-from datetime import datetime
+import pytz
 
 
 from src.role_policy import schemas as role_policy_schemas
@@ -20,6 +20,7 @@ from src.role_policy import dao as role_policy_dao
 from src.role_policy import models as role_policy_models
 from src.log import services as log_services
 from src.log import schemas as log_schemas
+from src import settings
 
 
 class RoleService:
@@ -280,7 +281,7 @@ class RoleService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Role not found"
                 )
-            now = datetime.now(timezone.utc)
+            now = datetime.now(pytz.timezone(settings.timezone))
             db_role.deleted_at = now
             db_role.deleted_by = current_user_id
             await log_services.LogServices.add(
@@ -516,7 +517,7 @@ class PermissionService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found"
                 )
-            now = datetime.now(timezone.utc)
+            now = datetime.now(pytz.timezone(settings.timezone))
             db_permission.deleted_at = now
             db_permission.deleted_by = current_user_id
             await log_services.LogServices.add(

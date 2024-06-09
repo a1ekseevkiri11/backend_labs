@@ -5,6 +5,8 @@ from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
 from fastapi.security.utils import get_authorization_scheme_param
 from fastapi import status
+import secrets
+import string
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -56,3 +58,7 @@ def get_hash(word: str) -> str:
 
 def is_matched_hash(word: str, hashed: str) -> bool:
     return pwd_context.verify(word, hashed)
+
+
+def generate_numeric_code():
+    return ''.join(secrets.choice(string.digits) for _ in range(6))
